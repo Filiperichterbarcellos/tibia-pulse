@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
-export const dynamic = "force-dynamic" as const;
+export const dynamic = "force-dynamic";
 
 const TIBIADATA_WORLDS = "https://api.tibiadata.com/v4/worlds";
 
@@ -76,11 +76,12 @@ export async function GET() {
       server_location: s(w.server_location ?? w.location),
       worldid:
         s(typeof w.worldid === "number" ? String(w.worldid) : w.worldid) ?? null,
+      // updated_at: nowIso,
     }));
 
     const sb = supabaseAdmin();
 
-    // Workaround sem `any` para client sem Database types
+    // Workaround seguro enquanto o client não está tipado com Database
     const { error } = await sb
       .from("worlds")
       .upsert(rows as unknown as never[], {
@@ -89,14 +90,12 @@ export async function GET() {
       });
 
     if (error) {
-      // eslint-disable-next-line no-console
       console.error("upsert worlds error", error);
       return NextResponse.json({ error: "db upsert failed" }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, count: rows.length });
   } catch (e) {
-    // eslint-disable-next-line no-console
     console.error("ingest/worlds fatal", e);
     return NextResponse.json({ error: "unhandled error" }, { status: 500 });
   }

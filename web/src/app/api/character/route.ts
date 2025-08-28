@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = "force-dynamic" as const;
+export const dynamic = "force-dynamic";
 
 const v4Url = (name: string) =>
   `https://api.tibiadata.com/v4/character/${encodeURIComponent(name)}`;
 const v3Url = (name: string) =>
   `https://api.tibiadata.com/v3/character/${encodeURIComponent(name)}`;
-
-/** ------ Helpers de narrowing ------ */
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null;
@@ -23,13 +21,6 @@ function toNum(n: unknown): number | null {
   return null;
 }
 
-/**
- * Tenta extrair XP em diversos formatos comuns das respostas v3/v4:
- * - obj.character.character.experience_points
- * - obj.character.experience_points
- * - obj.experience_points
- * - (variações com "experience")
- */
 function pickXP(obj: unknown): number | null {
   if (!isRecord(obj)) return null;
 
@@ -48,10 +39,6 @@ function pickXP(obj: unknown): number | null {
   );
 }
 
-/**
- * Garante a presença dos nós payload.character e payload.character.character,
- * retornando uma referência mutável segura para setar `experience_points`.
- */
 function ensureCharacterCharacterNode(
   base: unknown
 ): { payload: Record<string, unknown>; node: Record<string, unknown> } {
@@ -63,7 +50,6 @@ function ensureCharacterCharacterNode(
   return { payload, node };
 }
 
-/** ------ Fallback: raspagem do tibia.com ------ */
 async function fetchXPFromTibiaDotCom(name: string): Promise<number | null> {
   try {
     const url = `https://www.tibia.com/community/?name=${encodeURIComponent(name)}`;
@@ -72,7 +58,7 @@ async function fetchXPFromTibiaDotCom(name: string): Promise<number | null> {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (compatible; TibiaPulseBot/1.0; +https://example.com)",
-        "Accept-Language": "en-US,en;q=0.9", // força inglês para "Experience Points"
+        "Accept-Language": "en-US,en;q=0.9",
       },
     });
     if (!res.ok) return null;
@@ -80,9 +66,7 @@ async function fetchXPFromTibiaDotCom(name: string): Promise<number | null> {
 
     const m =
       html.match(/Experience\s*Points:\s*<\/td>\s*<td[^>]*>([\d.,]+)/i) ||
-      html.match(
-        /Pontos\s*de\s*Experi[êe]ncia:\s*<\/td>\s*<td[^>]*>([\d.,]+)/i
-      ); // fallback PT
+      html.match(/Pontos\s*de\s*Experi[êe]ncia:\s*<\/td>\s*<td[^>]*>([\d.,]+)/i);
 
     if (!m || !m[1]) return null;
     return toNum(m[1]);
@@ -91,7 +75,6 @@ async function fetchXPFromTibiaDotCom(name: string): Promise<number | null> {
   }
 }
 
-/** ------ Utilitário para ler Promises "settled" de fetch ------ */
 type ReadResult = { ok: boolean; status: number; json: unknown };
 
 async function readSettledResponse(
@@ -111,7 +94,6 @@ async function readSettledResponse(
   return { ok: res.ok, status: res.status, json };
 }
 
-/** ------ Handler ------ */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const name = searchParams.get("name");
@@ -124,7 +106,6 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Busca paralela em v4 e v3
     const [v4Settled, v3Settled] = await Promise.allSettled([
       fetch(v4Url(name), { cache: "no-store" }),
       fetch(v3Url(name), { cache: "no-store" }),
@@ -138,13 +119,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Character not found" }, { status });
     }
 
-    // Prefira base v4 se disponível; senão v3
     const base = v4.ok ? v4.json : v3.json;
 
-    // 1) XP da API (v4/v3)
     let xpFinal = pickXP(v4.json) ?? pickXP(v3.json);
 
-    // 2) Fallback: tibia.com HTML
     let xpSource: "tibiadata_v4" | "tibiadata_v3" | "tibia.com" | undefined;
     if (xpFinal == null) {
       xpFinal = await fetchXPFromTibiaDotCom(name);
@@ -153,14 +131,12 @@ export async function GET(req: NextRequest) {
       xpSource = v4.ok ? "tibiadata_v4" : "tibiadata_v3";
     }
 
-    // Monta payload assegurando o caminho character.character
     const { payload, node } = ensureCharacterCharacterNode(base);
 
     if (xpFinal != null) {
       node.experience_points = xpFinal;
     }
 
-    // Bloco de debug opcional (mantém o que você já tinha)
     (payload as Record<string, unknown>).__xp_source = xpSource;
     (payload as Record<string, unknown>).__sources = {
       v4_status: v4.status || null,
@@ -172,7 +148,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(payload, { status: 200 });
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error("character route fatal", err);
     return NextResponse.json(
       { error: "Failed to fetch character" },
