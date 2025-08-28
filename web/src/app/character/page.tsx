@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import CharacterClientPage from "./clientPage";
+import CharacterClientPage from "./ClientPage";
 
 export const dynamic = "force-dynamic";
 
