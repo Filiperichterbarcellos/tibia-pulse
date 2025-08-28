@@ -42,7 +42,7 @@ type APIOk = {
     deaths?: Death[];
     experience_history?: ExpPoint[]; // às vezes vem aqui fora
   };
-  information: any;
+  information: Record<string, unknown>; // (era any)
   status: { http_code: number };
 };
 
@@ -205,19 +205,27 @@ export default function CharacterPage() {
         const res = await fetch(`/api/character?name=${encodeURIComponent(name)}`, {
           cache: 'no-store',
         });
-        const body = await res.json().catch(() => null);
+        const body: unknown = await res.json().catch(() => null);
 
         if (res.status === 404) {
           setNotFound(true);
           return;
         }
         if (!res.ok) {
-          setError(body?.error || 'Falha ao buscar personagem.');
+          const errMsg =
+            (body && typeof body === 'object' && 'error' in body
+              ? String((body as Record<string, unknown>).error)
+              : null) ?? 'Falha ao buscar personagem.';
+          setError(errMsg);
           return;
         }
         setData(body as APIOk);
-      } catch (e: any) {
-        setError(e?.message ?? 'Erro inesperado ao buscar personagem.');
+      } catch (e: unknown) {
+        const msg =
+          e && typeof e === 'object' && 'message' in e
+            ? String((e as { message?: unknown }).message)
+            : 'Erro inesperado ao buscar personagem.';
+        setError(msg);
       } finally {
         setLoading(false);
       }
@@ -240,8 +248,12 @@ export default function CharacterPage() {
           setXpHistory([]);
           return;
         }
-        const json = await res.json();
-        setXpHistory(Array.isArray(json?.history) ? json.history : []);
+        const json: unknown = await res.json();
+        const hist =
+          json && typeof json === 'object' && 'history' in json
+            ? (json as { history: Array<{ date: string; experience: number | null; experience_delta: number | null }> }).history
+            : [];
+        setXpHistory(Array.isArray(hist) ? hist : []);
       } catch {
         setXpHistory([]);
       }
@@ -265,10 +277,7 @@ export default function CharacterPage() {
   const expHistory: ExpPoint[] = xpHistory.length ? xpHistory : apiExpHistory;
 
   // XP oficial que veio da API (v4/v3) — pode não existir
-  const xpApi =
-    (char as any)?.experience_points ??
-    (char as any)?.experience ??
-    undefined;
+  const xpApi = char?.experience_points ?? char?.experience;
 
   // Fallback: XP mínimo do nível (estimado) se a API não trouxe
   const xpEffective = xpApi ?? (char?.level != null ? xpMinForLevel(char.level) : undefined);
