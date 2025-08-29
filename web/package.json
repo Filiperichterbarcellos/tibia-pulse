@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "pnpm approve-builds @tailwindcss/oxide sharp unrs-resolver || true && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint ."
   },

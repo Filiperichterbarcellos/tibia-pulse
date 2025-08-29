@@ -1,5 +1,9 @@
-// Server Component simples lendo direto do Tibiadata v4
+// src/app/worlds/page.tsx
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
+// Server Component simples lendo direto do Tibiadata v4
 type TDWorld = {
   name: string;
   online_count?: number;
@@ -18,11 +22,7 @@ type TDResponse = {
   };
 };
 
-type Row = {
-  name: string;
-  online: number | null;
-  where: string | null;
-};
+type Row = { name: string; online: number | null; where: string | null };
 
 function s(x: unknown): string | null {
   return typeof x === "string" && x.trim() ? x : null;
@@ -32,27 +32,24 @@ function n(x: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-export const dynamic = "force-dynamic";
-
 export default async function WorldsPage() {
-  // Lê direto do v4
-  const res = await fetch("https://api.tibiadata.com/v4/worlds", {
-    // não cacheia no build pra não “congelar” valor
-    cache: "no-store",
-  }).catch(() => null);
+  // Lê direto do v4 (sem cache no build)
+  const res = await fetch("https://api.tibiadata.com/v4/worlds", { cache: "no-store" }).catch(
+    () => null
+  );
 
   let rows: Row[] = [];
 
   if (res && res.ok) {
     const json = (await res.json().catch(() => null)) as TDResponse | null;
 
-    const bag: TDWorld[] = [
+    const bag = [
       ...(json?.worlds?.regular_worlds ?? []),
       ...(json?.worlds?.regular ?? []),
       ...(json?.worlds?.allworlds ?? []),
       ...(json?.worlds?.all_worlds ?? []),
       ...(json?.worlds?.worlds_list ?? []),
-    ];
+    ] as TDWorld[];
 
     const byName = new Map<string, TDWorld>();
     for (const w of bag) if (w?.name) byName.set(w.name, w);
