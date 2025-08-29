@@ -1,15 +1,7 @@
 {
-  "build": {
-    "env": {
-      "NEXT_DISABLE_ESLINT": "1",
-      "NEXT_DISABLE_TYPECHECK": "1",
-      "PNPM_ALLOW_SCRIPTS": "true"
-    }
-  },
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
-    {
-      "path": "/api/ingest/worlds",
-      "schedule": "0 0 * * *"
-    }
+    { "path": "/api/ingest/worlds", "schedule": "0 0 * * *" },
+    { "path": "/api/ingest/xp?name=Dodaq", "schedule": "0 3 * * *" }
   ]
 }
