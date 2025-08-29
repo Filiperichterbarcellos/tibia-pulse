@@ -1,6 +1,7 @@
+// src/app/layout.tsx
+import "./globals.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
 import Navbar from "@/components/Navbar";
 
 const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
@@ -12,10 +13,17 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // use apenas classes estáticas aqui para evitar inconsistência de hidratação
   return (
-    <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="bg-neutral-50 text-neutral-900">
+    // Suprime diferenças de hidratação causadas por extensões/atributos injetados
+    <html
+      lang="pt-BR"
+      className={`${geistSans.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body
+        className="bg-neutral-50 text-neutral-900"
+        suppressHydrationWarning
+      >
         <Navbar />
         <main className="min-h-dvh">{children}</main>
       </body>
