@@ -3,24 +3,40 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
 
 export default function Navbar() {
-  const [logged, setLogged] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
     const sb = supabaseBrowser();
-    sb.auth.getSession().then(({ data }) => setLogged(!!data.session));
-    const { data: sub } = sb.auth.onAuthStateChange((_e, session) =>
-      setLogged(!!session)
+    let mounted = true;
+
+    // sessão atual
+    (async () => {
+      const { data } = await sb.auth.getSession();
+      if (mounted) setSession(data.session);
+    })();
+
+    // listener de mudanças (login/logout)
+    const { data: subscriptionContainer } = sb.auth.onAuthStateChange(
+      (_event: AuthChangeEvent, newSession: Session | null) => {
+        if (mounted) setSession(newSession);
+      }
     );
-    return () => sub.subscription.unsubscribe();
+    const subscription = subscriptionContainer.subscription;
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <nav className="mx-auto max-w-6xl px-4 sm:px-6 h-14 flex items-center justify-between">
+        {/* Logo */}
         <div className="flex items-center gap-3">
-          {/* espaço para a logo */}
           <div className="h-7 w-7 rounded-md bg-gradient-to-br from-amber-400 to-orange-600 shadow" />
           <Link href="/" className="font-semibold text-lg">
             <span className="text-neutral-900">Tibia</span>
@@ -28,6 +44,7 @@ export default function Navbar() {
           </Link>
         </div>
 
+        {/* Links */}
         <div className="flex items-center gap-6 text-sm">
           <Link href="/worlds" className="hover:text-amber-700">
             Worlds
@@ -42,13 +59,23 @@ export default function Navbar() {
             Calculadoras
           </Link>
 
-          {logged ? (
-            <Link
-              href="/account"
-              className="rounded-md border px-3 py-1.5 hover:bg-neutral-50"
-            >
-              Minha conta
-            </Link>
+          {session ? (
+            <>
+              <Link
+                href="/account"
+                className="rounded-md border px-3 py-1.5 hover:bg-neutral-50"
+              >
+                Minha conta
+              </Link>
+              <form action="/auth/signout" method="post">
+                <button
+                  type="submit"
+                  className="rounded-md bg-neutral-200 px-3 py-1.5 hover:bg-neutral-300"
+                >
+                  Sair
+                </button>
+              </form>
+            </>
           ) : (
             <Link
               href="/login"

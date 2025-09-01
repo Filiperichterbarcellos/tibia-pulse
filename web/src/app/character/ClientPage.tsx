@@ -4,12 +4,6 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 /** ===== Tipos do payload ===== */
-type ExpPoint = {
-  date: string;                      // 'YYYY-MM-DD'
-  experience?: number | null;        // total (opcional)
-  experience_delta?: number | null;  // ganho do dia (opcional)
-};
-
 type TDCharacter = {
   name: string;
   former_names?: string[];
@@ -34,6 +28,12 @@ type Death = {
   level: number;
   reason?: string;
   killers?: { name?: string; player?: boolean }[];
+};
+
+type ExpPoint = {
+  date: string;                      // 'YYYY-MM-DD'
+  experience?: number | null;        // total acumulado (opcional na API)
+  experience_delta?: number | null;  // ganho do dia (opcional na API)
 };
 
 type APIOk = {
@@ -118,6 +118,7 @@ function XPStats({
         .sort((a, b) => a.date.localeCompare(b.date))
     : [];
 
+  // recorde real calculado dos pontos recebidos
   const recordReal = data.reduce((max, p) => {
     const v = Number(p.experience_delta ?? 0);
     return v > max ? v : max;
@@ -125,25 +126,25 @@ function XPStats({
 
   const showEstimate = !data.length && estimatedRecord != null;
 
+  const recordLabel = (() => {
+    if (recordReal) return fmtNumber(recordReal);
+    if (bestRecord != null) return fmtNumber(bestRecord);
+    if (estimatedRecord != null) return `${fmtNumber(estimatedRecord)} (estimado)`;
+    return '0';
+  })();
+
   return (
     <div className="border rounded p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="font-medium">XP por dia</div>
         <div className="text-sm space-x-4">
+          {average31d != null && (
+            <span>
+              Média (31d): <b>{fmtNumber(average31d)}</b>
+            </span>
+          )}
           <span>
-            Média (31d): <b>{average31d != null ? fmtNumber(average31d) : '-'}</b>
-          </span>
-          <span>
-            Recorde pessoal:{' '}
-            <b>
-              {recordReal
-                ? fmtNumber(recordReal)
-                : bestRecord != null
-                ? fmtNumber(bestRecord)
-                : showEstimate
-                ? `${fmtNumber(estimatedRecord)} (estimado)`
-                : '0'}
-            </b>
+            Recorde pessoal: <b>{recordLabel}</b>
           </span>
         </div>
       </div>
@@ -198,14 +199,14 @@ export default function CharacterClientPage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<APIOk | null>(null);
 
-  // estado para XP
+  // estado para xp/stats
   const [xpHistory, setXpHistory] = useState<ExpPoint[]>([]);
   const [avg31d, setAvg31d] = useState<number | null>(null);
   const [bestDay, setBestDay] = useState<number | null>(null);
 
   const name = (sp.get('name') ?? '').trim();
 
-  /** Busca dados gerais do personagem */
+  // Busca dados gerais (endpoint /api/character)
   useEffect(() => {
     if (!name) return;
     (async () => {
@@ -213,45 +214,38 @@ export default function CharacterClientPage() {
       setError(null);
       setNotFound(false);
       setData(null);
-
       try {
-        const url = `/api/character?name=${encodeURIComponent(name)}`;
-        const res = await fetch(url, { cache: 'no-store' });
-        const body: any = await res.json().catch(() => null);
-
-        console.log('[character] status:', res.status, 'hasName:', !!body?.character?.character?.name);
+        const res = await fetch(`/api/character?name=${encodeURIComponent(name)}`, {
+          cache: 'no-store',
+        });
+        const body: unknown = await res.json().catch(() => null);
 
         if (res.status === 404) {
           setNotFound(true);
           return;
         }
-
-        if (res.ok) {
-          const charName = body?.character?.character?.name;
-          if (!charName) {
-            // 200 sem personagem válido -> trata como não encontrado
-            setNotFound(true);
-            return;
-          }
-          setData(body as APIOk);
+        if (!res.ok) {
+          const errMsg =
+            (body && typeof body === 'object' && 'error' in body
+              ? String((body as Record<string, unknown>).error)
+              : null) ?? 'Falha ao buscar personagem.';
+          setError(errMsg);
           return;
         }
-
-        const errMsg =
-          (body && typeof body === 'object' && 'error' in body
-            ? String(body.error)
-            : `HTTP ${res.status}`);
-        setError(errMsg);
-      } catch (e: any) {
-        setError(e?.message || 'Erro inesperado ao buscar personagem.');
-        console.error('[character] fetch failed:', e);
+        setData(body as APIOk);
+      } catch (e: unknown) {
+        const msg =
+          e && typeof e === 'object' && 'message' in e
+            ? String((e as { message?: unknown }).message)
+            : 'Erro inesperado ao buscar personagem.';
+        setError(msg);
       } finally {
         setLoading(false);
       }
     })();
   }, [name]);
 
-  /** Ingest on-demand + stats (31d) */
+  // Ingest on-demand + stats (31d) do nosso backend
   useEffect(() => {
     if (!name) {
       setXpHistory([]);
@@ -261,20 +255,18 @@ export default function CharacterClientPage() {
     }
     (async () => {
       try {
-        // ingest não bloqueia UI
+        // não bloqueia UI se falhar
         fetch(`/api/ingest/xp?name=${encodeURIComponent(name)}`, { method: 'POST' }).catch(() => {});
 
         const res = await fetch(`/api/characters/${encodeURIComponent(name)}/xp-stats`, {
           cache: 'no-store',
         });
-
         if (!res.ok) {
           setXpHistory([]);
           setAvg31d(null);
           setBestDay(null);
           return;
         }
-
         const json: any = await res.json();
 
         const hist: ExpPoint[] = Array.isArray(json?.days)
@@ -305,7 +297,7 @@ export default function CharacterClientPage() {
   const char = data?.character?.character;
   const deaths = data?.character?.deaths ?? [];
 
-  // normaliza dados vindos da API oficial (fallback)
+  // normaliza dados da API oficial (fallback)
   const apiExpHistoryRaw: ExpPoint[] =
     (char?.experience_history as ExpPoint[] | undefined) ??
     (data?.character?.experience_history as ExpPoint[] | undefined) ??
@@ -316,7 +308,7 @@ export default function CharacterClientPage() {
     experience_delta: p.experience_delta ?? null,
   }));
 
-  // Preferimos nossos stats; se vazio, usa o da API
+  // preferimos os stats do nosso backend; se vazio, usa o da API
   const expHistory: ExpPoint[] = xpHistory.length ? xpHistory : apiExpHistory;
 
   const xpApi = char?.experience_points ?? char?.experience;
