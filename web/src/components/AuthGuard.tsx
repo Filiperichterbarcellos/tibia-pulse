@@ -1,29 +1,51 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabaseBrowser } from '@/lib/supabaseClient';
+import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { supabaseBrowser } from "@/lib/supabaseClient";
 
-export default function AuthGuard({ children }: { children: React.ReactNode }) {
+type Props = {
+  children: React.ReactNode;
+  redirectTo?: string; // padrão: /login
+};
+
+export default function AuthGuard({ children, redirectTo = "/login" }: Props) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    const supabase = supabaseBrowser();
+    const sb = supabaseBrowser();
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.replace('/login');
-      else setLoading(false);
+    let redirected = false;
+
+    sb.auth.getSession().then(({ data: { session } }) => {
+      if (!session && pathname !== redirectTo) {
+        redirected = true;
+        router.replace(redirectTo);
+      } else {
+        setLoading(false);
+      }
     });
 
-    // mantém em sincronia
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!session) router.replace('/login');
+    const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
+      if (!session && !redirected && pathname !== redirectTo) {
+        redirected = true;
+        router.replace(redirectTo);
+      }
     });
 
-    return () => sub.subscription.unsubscribe();
-  }, [router]);
+    return () => {
+      try {
+        sub.subscription.unsubscribe();
+      } catch {}
+    };
+  }, [router, pathname, redirectTo]);
 
-  if (loading) return <div className="p-8">Carregando…</div>;
+  if (loading) {
+    return (
+      <div className="p-8 text-sm text-neutral-600">Carregando…</div>
+    );
+  }
   return <>{children}</>;
 }
