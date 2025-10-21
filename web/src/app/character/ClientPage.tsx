@@ -1,9 +1,15 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 
 /** ===== Tipos do payload ===== */
+type ExpPoint = {
+  date: string;                      // 'YYYY-MM-DD'
+  experience?: number | null;        // total acumulado (opcional na API)
+  experience_delta?: number | null;  // ganho do dia (opcional na API)
+};
+
 type TDCharacter = {
   name: string;
   former_names?: string[];
@@ -30,12 +36,6 @@ type Death = {
   killers?: { name?: string; player?: boolean }[];
 };
 
-type ExpPoint = {
-  date: string;                      // 'YYYY-MM-DD'
-  experience?: number | null;        // total acumulado (opcional na API)
-  experience_delta?: number | null;  // ganho do dia (opcional na API)
-};
-
 type APIOk = {
   character: {
     character: TDCharacter;
@@ -48,8 +48,8 @@ type APIOk = {
 
 /** ===== Helpers ===== */
 function fmtNumber(n?: number | null) {
-  if (n == null || Number.isNaN(n)) return '-';
-  return Number(n).toLocaleString();
+  if (n == null || Number.isNaN(n)) return "-";
+  return Number(n).toLocaleString("pt-BR");
 }
 function xpMinForLevel(L: number): number {
   const l = Number(L) || 0;
@@ -78,9 +78,9 @@ function DeathsCard({ deaths }: { deaths?: Death[] }) {
           const when = new Date(d.time).toLocaleString();
           const killers =
             (d.killers ?? [])
-              .map(k => (k?.name ? k.name : ''))
+              .map((k) => (k?.name ? k.name : ""))
               .filter(Boolean)
-              .join(', ') || undefined;
+              .join(", ") || undefined;
 
           return (
             <li key={i} className="text-sm border-b last:border-0 pb-2">
@@ -110,7 +110,7 @@ function XPStats({
 }) {
   const data = Array.isArray(points)
     ? points
-        .map(p => ({
+        .map((p) => ({
           date: p.date,
           experience: p.experience ?? null,
           experience_delta: p.experience_delta ?? null,
@@ -130,7 +130,7 @@ function XPStats({
     if (recordReal) return fmtNumber(recordReal);
     if (bestRecord != null) return fmtNumber(bestRecord);
     if (estimatedRecord != null) return `${fmtNumber(estimatedRecord)} (estimado)`;
-    return '0';
+    return "0";
   })();
 
   return (
@@ -193,7 +193,8 @@ export default function CharacterClientPage() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  const [nameInput, setNameInput] = useState(sp.get('name') ?? '');
+  const initialName = sp?.get("name") ?? "";
+  const [nameInput, setNameInput] = useState(initialName);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -204,7 +205,7 @@ export default function CharacterClientPage() {
   const [avg31d, setAvg31d] = useState<number | null>(null);
   const [bestDay, setBestDay] = useState<number | null>(null);
 
-  const name = (sp.get('name') ?? '').trim();
+  const name = (sp?.get("name") ?? "").trim();
 
   // Busca dados gerais (endpoint /api/character)
   useEffect(() => {
@@ -215,9 +216,10 @@ export default function CharacterClientPage() {
       setNotFound(false);
       setData(null);
       try {
-        const res = await fetch(`/api/character?name=${encodeURIComponent(name)}`, {
-          cache: 'no-store',
-        });
+        const res = await fetch(
+          `/api/character?name=${encodeURIComponent(name)}`,
+          { cache: "no-store" }
+        );
         const body: unknown = await res.json().catch(() => null);
 
         if (res.status === 404) {
@@ -226,18 +228,18 @@ export default function CharacterClientPage() {
         }
         if (!res.ok) {
           const errMsg =
-            (body && typeof body === 'object' && 'error' in body
+            (body && typeof body === "object" && "error" in body
               ? String((body as Record<string, unknown>).error)
-              : null) ?? 'Falha ao buscar personagem.';
+              : null) ?? "Falha ao buscar personagem.";
           setError(errMsg);
           return;
         }
         setData(body as APIOk);
       } catch (e: unknown) {
         const msg =
-          e && typeof e === 'object' && 'message' in e
+          e && typeof e === "object" && "message" in e
             ? String((e as { message?: unknown }).message)
-            : 'Erro inesperado ao buscar personagem.';
+            : "Erro inesperado ao buscar personagem.";
         setError(msg);
       } finally {
         setLoading(false);
@@ -256,21 +258,32 @@ export default function CharacterClientPage() {
     (async () => {
       try {
         // não bloqueia UI se falhar
-        fetch(`/api/ingest/xp?name=${encodeURIComponent(name)}`, { method: 'POST' }).catch(() => {});
+        fetch(`/api/ingest/xp?name=${encodeURIComponent(name)}`, {
+          method: "POST",
+        }).catch(() => {});
 
-        const res = await fetch(`/api/characters/${encodeURIComponent(name)}/xp-stats`, {
-          cache: 'no-store',
-        });
+        const res = await fetch(
+          `/api/characters/${encodeURIComponent(name)}/xp-stats`,
+          { cache: "no-store" }
+        );
         if (!res.ok) {
           setXpHistory([]);
           setAvg31d(null);
           setBestDay(null);
           return;
         }
-        const json: any = await res.json();
 
-        const hist: ExpPoint[] = Array.isArray(json?.days)
-          ? json.days.map((d: any) => ({
+        type XpStatsResp = {
+          days?: { date: string; gain?: number }[];
+          average?: number | null;
+          best?: number | null;
+        };
+
+        const json: unknown = await res.json();
+        const j = json as XpStatsResp;
+
+        const hist: ExpPoint[] = Array.isArray(j.days)
+          ? j.days.map((d) => ({
               date: String(d.date),
               experience: null,
               experience_delta: Number(d.gain ?? 0),
@@ -278,8 +291,8 @@ export default function CharacterClientPage() {
           : [];
 
         setXpHistory(hist);
-        setAvg31d(json?.average ?? null);
-        setBestDay(json?.best ?? null);
+        setAvg31d(typeof j.average === "number" ? j.average : j.average ?? null);
+        setBestDay(typeof j.best === "number" ? j.best : j.best ?? null);
       } catch {
         setXpHistory([]);
         setAvg31d(null);
@@ -294,15 +307,15 @@ export default function CharacterClientPage() {
     router.push(`/character?name=${encodeURIComponent(nameInput.trim())}`);
   }
 
-  const char = data?.character?.character;
-  const deaths = data?.character?.deaths ?? [];
+  const char = (data?.character?.character as TDCharacter | undefined) ?? undefined;
+  const deaths = (data?.character?.deaths as Death[] | undefined) ?? [];
 
   // normaliza dados da API oficial (fallback)
   const apiExpHistoryRaw: ExpPoint[] =
     (char?.experience_history as ExpPoint[] | undefined) ??
     (data?.character?.experience_history as ExpPoint[] | undefined) ??
     [];
-  const apiExpHistory = apiExpHistoryRaw.map(p => ({
+  const apiExpHistory = apiExpHistoryRaw.map((p) => ({
     date: p.date,
     experience: p.experience ?? null,
     experience_delta: p.experience_delta ?? null,
@@ -353,13 +366,18 @@ export default function CharacterClientPage() {
         <div className="grid md:grid-cols-2 gap-4">
           <div className="border rounded p-4 space-y-2">
             <div className="text-xl font-medium">{char.name}</div>
-            <div>Mundo: <b>{char.world}</b></div>
-            <div>Vocação: <b>{char.vocation}</b></div>
-            <div>Nível: <b>{char.level}</b></div>
+            <div>
+              Mundo: <b>{char.world}</b>
+            </div>
+            <div>
+              Vocação: <b>{char.vocation}</b>
+            </div>
+            <div>
+              Nível: <b>{char.level}</b>
+            </div>
 
             <div>
-              XP total:{' '}
-              <b>{xpEffective != null ? fmtNumber(xpEffective) : 'indisponível'}</b>
+              XP total: <b>{xpEffective != null ? fmtNumber(xpEffective) : "indisponível"}</b>
               {isEstimated && (
                 <span className="text-xs text-neutral-500 ml-2">(estimado pelo nível)</span>
               )}
@@ -370,7 +388,7 @@ export default function CharacterClientPage() {
               <div>Último login: {new Date(char.last_login).toLocaleString()}</div>
             )}
             {Array.isArray(char.houses) && char.houses.length > 0 && (
-              <div>Casas: {char.houses.map((h) => h.name).join(', ')}</div>
+              <div>Casas: {char.houses.map((h) => h.name).join(", ")}</div>
             )}
           </div>
 

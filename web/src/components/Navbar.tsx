@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabaseClient";
-import type { Session } from "@supabase/supabase-js";
+import { useState } from "react";
+import { useSession, signOut } from "next-auth/react";
+
 
 const MENU: { href: string; label: string; icon?: string }[] = [
   { href: "/worlds", label: "Worlds", icon: "🌍" },
@@ -14,33 +14,18 @@ const MENU: { href: string; label: string; icon?: string }[] = [
 ];
 
 export default function Navbar() {
-  const sb = supabaseBrowser();
-  const [session, setSession] = useState<Session | null>(null);
+  const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    sb.auth.getSession().then(({ data }) => mounted && setSession(data.session));
-    const { data: sub } = sb.auth.onAuthStateChange((_e, s) => {
-      if (mounted) setSession(s);
-    });
-    const unsub = sub.subscription;
-    return () => {
-      mounted = false;
-      unsub.unsubscribe();
-    };
-  }, [sb]);
+  const logged = !!session;
 
   function closeMenu() {
     setOpen(false);
   }
 
-  async function signOut() {
-    await sb.auth.signOut();
-    window.location.href = "/login";
+  async function handleSignOut() {
+    await signOut({ callbackUrl: "/" }); // ou "/login" se preferir
   }
-
-  const logged = !!session;
 
   return (
     <>
@@ -65,34 +50,37 @@ export default function Navbar() {
               </li>
             ))}
 
-            {logged ? (
-              <>
+            {status !== "loading" && (
+              logged ? (
+                <>
+                  <li>
+                    <Link
+                      href="/account"
+                      className="rounded-md border px-3 py-1.5 hover:bg-neutral-50"
+                    >
+                      Minha conta
+                    </Link>
+                  </li>
+                  <li>
+                    <button
+                      onClick={handleSignOut}
+                      className="rounded-md border px-3 py-1.5 hover:bg-neutral-50"
+                    >
+                      Sair
+                    </button>
+                  </li>
+                </>
+              ) : (
                 <li>
+                  {/* leva para a página /login com os botões Google/Discord */}
                   <Link
-                    href="/account"
-                    className="rounded-md border px-3 py-1.5 hover:bg-neutral-50"
+                    href="/login"
+                    className="rounded-md bg-amber-600 px-3 py-1.5 text-white hover:bg-amber-700"
                   >
-                    Minha conta
+                    Entrar
                   </Link>
                 </li>
-                <li>
-                  <button
-                    onClick={signOut}
-                    className="rounded-md border px-3 py-1.5 hover:bg-neutral-50"
-                  >
-                    Sair
-                  </button>
-                </li>
-              </>
-            ) : (
-              <li>
-                <Link
-                  href="/login"
-                  className="rounded-md bg-amber-600 px-3 py-1.5 text-white hover:bg-amber-700"
-                >
-                  Entrar
-                </Link>
-              </li>
+              )
             )}
           </ul>
 
@@ -113,16 +101,15 @@ export default function Navbar() {
       {open && (
         <div className="fixed inset-0 z-50">
           {/* backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={closeMenu}
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={closeMenu} />
           {/* painel */}
           <aside className="absolute right-0 top-0 h-full w-[85%] max-w-sm bg-white shadow-xl p-4 flex flex-col">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="h-7 w-7 rounded-md bg-gradient-to-br from-amber-400 to-orange-600 shadow" />
-                <span className="font-semibold">Tibia<span className="text-amber-600">Pulse</span></span>
+                <span className="font-semibold">
+                  Tibia<span className="text-amber-600">Pulse</span>
+                </span>
               </div>
               <button
                 aria-label="Fechar menu"
@@ -149,33 +136,35 @@ export default function Navbar() {
               ))}
             </div>
 
-            <div className="mt-auto pt-4 border-t">
-              {logged ? (
-                <div className="flex items-center gap-2">
+            {status !== "loading" && (
+              <div className="mt-auto pt-4 border-t">
+                {logged ? (
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href="/account"
+                      onClick={closeMenu}
+                      className="flex-1 rounded-md border px-3 py-2 text-center hover:bg-neutral-50"
+                    >
+                      Minha conta
+                    </Link>
+                    <button
+                      onClick={() => { handleSignOut(); closeMenu(); }}
+                      className="flex-1 rounded-md bg-amber-600 text-white px-3 py-2 hover:bg-amber-700"
+                    >
+                      Sair
+                    </button>
+                  </div>
+                ) : (
                   <Link
-                    href="/account"
+                    href="/login"
                     onClick={closeMenu}
-                    className="flex-1 rounded-md border px-3 py-2 text-center hover:bg-neutral-50"
+                    className="block rounded-md bg-amber-600 text-white px-3 py-2 text-center hover:bg-amber-700"
                   >
-                    Minha conta
+                    Entrar
                   </Link>
-                  <button
-                    onClick={async () => { await signOut(); closeMenu(); }}
-                    className="flex-1 rounded-md bg-amber-600 text-white px-3 py-2 hover:bg-amber-700"
-                  >
-                    Sair
-                  </button>
-                </div>
-              ) : (
-                <Link
-                  href="/login"
-                  onClick={closeMenu}
-                  className="block rounded-md bg-amber-600 text-white px-3 py-2 text-center hover:bg-amber-700"
-                >
-                  Entrar
-                </Link>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </aside>
         </div>
       )}
