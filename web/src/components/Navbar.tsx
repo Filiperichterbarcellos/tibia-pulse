@@ -4,11 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 
-
 const MENU: { href: string; label: string; icon?: string }[] = [
   { href: "/worlds", label: "Worlds", icon: "🌍" },
   { href: "/character", label: "Buscar personagem", icon: "🧙" },
-  { href: "/tools", label: "Calculadoras", icon: "🧮" },
+  { href: "/calculators", label: "Calculadoras", icon: "🧮" }, // <- ajustado
   { href: "/stats", label: "Estatísticas", icon: "📈" },
   { href: "/bosses", label: "Bosses", icon: "👹" },
 ];
@@ -72,7 +71,6 @@ export default function Navbar() {
                 </>
               ) : (
                 <li>
-                  {/* leva para a página /login com os botões Google/Discord */}
                   <Link
                     href="/login"
                     className="rounded-md bg-amber-600 px-3 py-1.5 text-white hover:bg-amber-700"
