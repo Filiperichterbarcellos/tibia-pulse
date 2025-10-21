@@ -1,16 +1,17 @@
+// src/app/api/characters/[name]/exp/route.ts
 import { NextResponse } from "next/server";
 import { load } from "cheerio";
 import type { Element as DomElement } from "domhandler";
 
-export const revalidate = 60 * 60 * 6; // 6h
+// IMPORTANTE: use runtime Node.js (cheerio não roda no Edge)
+export const runtime = "nodejs";
+// revalidate precisa ser literal
+export const revalidate = 21600; // 6h
 
 function toNumber(s: string): number {
   // remove espaços, pontos de milhar e converte vírgula decimal
   return Number(
-    s
-      .replace(/\s+/g, "")
-      .replace(/\./g, "")
-      .replace(",", ".")
+    s.replace(/\s+/g, "").replace(/\./g, "").replace(",", ".")
   );
 }
 
@@ -40,7 +41,7 @@ export async function GET(
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) TibiaPulse/1.0 Safari/605.1.15",
       Accept: "text/html",
     },
-    // queremos sempre tentar pegar o mais novo; o revalidate acima cuida do cache da rota
+    // sempre buscar fresco; o cache desta rota é controlado por `revalidate`
     cache: "no-store",
   }).then((r) => {
     if (!r.ok) throw new Error(`GuildStats error: ${r.status}`);
@@ -49,7 +50,7 @@ export async function GET(
 
   const $ = load(html);
 
-  // pega a tabela que tem o cabeçalho "Date" (fica na aba Experience)
+  // pega a tabela que tem o cabeçalho "Date" (aba Experience)
   const expTable = $("table")
     .filter((_, el) =>
       $(el).find("th").first().text().toLowerCase().includes("date")
@@ -69,7 +70,7 @@ export async function GET(
     const lvlText = tds.length > 3 ? $(tds[3]).text().trim() : "";
     const avgHourText = tds.length > 6 ? $(tds[6]).text().trim() : "";
 
-    // normaliza + e os diferentes sinais de menos que aparecem no site (−, U+2212)
+    // normaliza + e diferentes sinais de menos (−, U+2212)
     const expChange = toNumber(
       expChangeRaw.replace("+", "").replace(/\u2212|−/g, "-")
     );
@@ -90,18 +91,25 @@ export async function GET(
 
   if (!series.length) {
     return NextResponse.json(
-      { series: [], best: null, averageDailyExp: 0 },
+      {
+        // novo formato
+        days: [],
+        average: 0,
+        best: null,
+        // legado
+        series: [],
+        averageDailyExp: 0,
+        bestRow: null,
+      },
       { status: 200 }
     );
   }
 
   // métricas simples
   const positiveDays = series.filter((d) => d.expChange > 0);
-  const best =
+  const bestRow =
     positiveDays.length > 0
-      ? positiveDays.reduce((acc, d) =>
-          d.expChange > acc.expChange ? d : acc
-        )
+      ? positiveDays.reduce((acc, d) => (d.expChange > acc.expChange ? d : acc))
       : null;
 
   const averageDailyExp =
@@ -112,5 +120,18 @@ export async function GET(
         )
       : 0;
 
-  return NextResponse.json({ series, best, averageDailyExp });
+  // resposta compatível com ambos os consumidores
+  return NextResponse.json(
+    {
+      // novo formato (usado pelo client atual)
+      days: series.map((s) => ({ date: s.date, gain: s.expChange })),
+      average: averageDailyExp,
+      best: bestRow ? bestRow.expChange : null,
+      // formato legado (se algo ainda ler isso)
+      series,
+      averageDailyExp,
+      bestRow,
+    },
+    { status: 200 }
+  );
 }
