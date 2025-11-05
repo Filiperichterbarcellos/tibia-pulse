@@ -7,6 +7,7 @@
     "test:coverage": "jest --coverage"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/dotenv": "^6.1.1",
     "@types/express": "^5.0.5",
     "@types/jest": "^30.0.0",
@@ -16,8 +17,10 @@
     "ts-node": "^10.9.2"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "supertest": "^7.1.4"
+    "supertest": "^7.1.4",
+    "swagger-ui-express": "^5.0.1"
   }
 }

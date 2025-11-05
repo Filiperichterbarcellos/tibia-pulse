@@ -1,22 +1,19 @@
-import express from "express";
-import calculator from "../src/routes/calculator";
-import request from "supertest";
+import request from 'supertest';
+import { app } from '../src/app';
 
-describe("GET /api/calculator/tibia-coin", () => {
-  const app = express().use("/api/calculator", calculator);
-
-  it("computes coins", async () => {
+describe('Calculator (tibia-coin)', () => {
+  it('computes coins', async () => {
     const res = await request(app)
-      .get("/api/calculator/tibia-coin")
-      .query({ price: 500000, tc: 25000 });
+      .get('/api/calculator/tibia-coin')
+      .query({ price: 600000, tc: 25000 }); // 600k / 25k = 24 -> ceil = 24
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ coins: 20 });
+    expect(res.body).toEqual({ coins: 24 });
   });
 
-  it("400 on invalid params", async () => {
+  it('400 on invalid params', async () => {
     const res = await request(app)
-      .get("/api/calculator/tibia-coin")
-      .query({ price: 500000, tc: 0 });
+      .get('/api/calculator/tibia-coin')
+      .query({ price: 600000, tc: 0 });
     expect(res.status).toBe(400);
   });
 });

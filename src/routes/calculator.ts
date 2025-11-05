@@ -1,13 +1,24 @@
-import { Router, Request, Response } from "express";
-const r = Router();
+import { Router } from 'express';
 
-r.get("/tibia-coin", (req: Request, res: Response) => {
-  const price = Number(req.query.price ?? 0);
-  const tc = Number(req.query.tc ?? 1);
+const router = Router();
+
+/**
+ * GET /api/calculator/tibia-coin
+ * Query params:
+ *  - price: preço do item em gold (ex: 600000)
+ *  - tc: preço de 1 Tibia Coin em gold (ex: 25000)
+ * Retorna: { coins: number }
+ */
+router.get('/api/calculator/tibia-coin', (req, res) => {
+  const price = Number(req.query.price);
+  const tc = Number(req.query.tc);
+
   if (!Number.isFinite(price) || !Number.isFinite(tc) || tc <= 0) {
-    return res.status(400).json({ error: "invalid params" });
+    return res.status(400).json({ error: 'invalid params' });
   }
-  res.json({ coins: Math.ceil(price / tc) });
+
+  const coins = Math.ceil(price / tc);
+  return res.status(200).json({ coins });
 });
 
-export default r;
+export default router;

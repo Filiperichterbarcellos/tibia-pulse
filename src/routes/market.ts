@@ -1,8 +1,14 @@
-import { Router, Request, Response } from "express";
-const r = Router();
+import { Router } from 'express';
 
-r.get("/", (_req: Request, res: Response) => {
-  res.json({ items: [] });
+const router = Router();
+
+router.get('/api/market', (_req, res) => {
+  res.status(200).json({
+    items: [
+      { name: 'Dragon Scale Mail', avgPrice: 180000 },
+      { name: 'Magic Plate Armor', avgPrice: 220000 }
+    ]
+  });
 });
 
-export default r;
+export default router;

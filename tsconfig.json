@@ -1,21 +1,7 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "CommonJS",
-    "moduleResolution": "Node",
-    "rootDir": "src",
-    "outDir": "dist",
-
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
-
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-
-    "verbatimModuleSyntax": false,
-    "typeRoots": ["./src/types", "./node_modules/@types"]
-  },
-  "include": ["src"]
+    "moduleResolution": "node",
+    "types": ["node", "jest"]
+  }
 }
