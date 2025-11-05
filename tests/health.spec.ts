@@ -1,37 +1,10 @@
-import express from 'express';
 import request from 'supertest';
+import app from '../src/app';
 
-// Importa o router, independente de como foi exportado
-import * as HealthModule from '../src/routes/health';
-
-// Fallbacks pra diferentes estilos de export
-const router =
-  (HealthModule as any).default ||
-  (HealthModule as any).router ||
-  (HealthModule as any).healthRouter ||
-  (HealthModule as any);
-
-describe('GET /health', () => {
-  it('responds 200 and a payload', async () => {
-    const app = express();
-    app.use(router); // monta o router
-
-    const res = await request(app).get('/'); // ajuste se sua rota for diferente
+describe('Health', () => {
+  it('GET /health -> 200 e payload', async () => {
+    const res = await request(app).get('/health');
     expect(res.status).toBe(200);
-
-    // Se seu handler retorna JSON {status:'ok'}:
-    // Ajuste conforme o seu payload real
-    if (res.headers['content-type']?.includes('application/json')) {
-      expect(res.body).toEqual({ status: 'ok' });
-    } else {
-      expect(String(res.text || '').toLowerCase()).toContain('ok');
-    }
+    expect(res.body).toEqual({ status: 'ok' });
   });
 });
-
-// mantém também o probe simples pra garantir cobertura de linha "pura"
-if ((HealthModule as any)._healthProbe) {
-  test('health probe returns ok', () => {
-    expect((HealthModule as any)._healthProbe()).toBe('ok');
-  });
-}

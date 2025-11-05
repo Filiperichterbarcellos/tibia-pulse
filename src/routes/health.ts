@@ -1,21 +1,8 @@
-import { Router, Request, Response } from "express";
-const r = Router();
+import { Router } from 'express';
+const router = Router();
 
-/**
- * @openapi
- * /health:
- *   get:
- *     summary: Checagem de saúde do serviço
- *     tags: [Health]
- *     responses:
- *       200:
- *         description: OK
- */
-r.get("/", (_req: Request, res: Response) => {
-  res.json({ ok: true, service: "tibia-pulse-backend" });
+router.get('/', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
 });
 
-export default r;
-
-// ---- test probe (mantém no fim do arquivo) ----
-export const _healthProbe = () => 'ok';
+export default router;
