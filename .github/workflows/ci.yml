@@ -1,3 +1,4 @@
+# .github/workflows/ci.yml
 name: CI - Backend (tests + coverage + sonar)
 
 on:
@@ -12,17 +13,28 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Show Node versions (debug)
+        run: |
+          node -v
+          npm -v
+
+      - name: Install deps (incluindo dev)
+        run: npm install --include=dev
+
+      - name: Sanity check - jest disponível?
+        run: npx jest --version
 
       - name: Run tests with coverage
-        run: npm run test:coverage
+        run: npx jest --coverage
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -39,3 +51,10 @@ jobs:
             -Dsonar.projectKey=tibia-pulse-backend
             -Dsonar.organization=filiperichterbarcellos
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+      - name: Enforce Quality Gate
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: -Dsonar.qualitygate.wait=true
