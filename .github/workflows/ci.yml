@@ -29,12 +29,13 @@ jobs:
           CI: "true"
         run: npx jest --coverage --runInBand
 
-      - name: Upload coverage report
+      - name: Upload coverage report (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage
 
+      #  UM ÚNICO SCAN que já espera o Quality Gate
       - name: SonarCloud Scan (with Quality Gate)
         uses: SonarSource/sonarcloud-github-action@v2
         env:
