@@ -24,14 +24,6 @@ jobs:
       - name: Install deps (incl. dev)
         run: npm ci
 
-      - name: Debug env
-        run: |
-          node -v
-          npm -v
-          npx jest --version || true
-          ls -lah node_modules/.bin || true
-          cat package.json
-
       - name: Run tests with coverage (CI mode)
         env:
           CI: "true"
@@ -43,7 +35,7 @@ jobs:
           name: coverage
           path: coverage
 
-      - name: SonarCloud Scan
+      - name: SonarCloud Scan (with Quality Gate)
         uses: SonarSource/sonarcloud-github-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -52,10 +44,4 @@ jobs:
             -Dsonar.projectKey=Filiperichterbarcellos_tibia-pulse-backend
             -Dsonar.organization=tibia-pulse
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-
-      - name: Enforce Quality Gate
-        uses: SonarSource/sonarcloud-github-action@v2
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.wait=true
