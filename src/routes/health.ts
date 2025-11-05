@@ -16,3 +16,6 @@ r.get("/", (_req: Request, res: Response) => {
 });
 
 export default r;
+
+// ---- test probe (mantém no fim do arquivo) ----
+export const _healthProbe = () => 'ok';
