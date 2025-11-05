@@ -1,4 +1,3 @@
-# .github/workflows/ci.yml
 name: CI - Backend (tests + coverage + sonar)
 
 on:
@@ -22,19 +21,21 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Show Node versions (debug)
+      - name: Install deps (incl. dev)
+        run: npm ci
+
+      - name: Debug env
         run: |
           node -v
           npm -v
+          npx jest --version || true
+          ls -lah node_modules/.bin || true
+          cat package.json
 
-      - name: Install deps (incluindo dev)
-        run: npm install --include=dev
-
-      - name: Sanity check - jest disponível?
-        run: npx jest --version
-
-      - name: Run tests with coverage
-        run: npx jest --coverage
+      - name: Run tests with coverage (CI mode)
+        env:
+          CI: "true"
+        run: npx jest --coverage --runInBand
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -48,8 +49,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=tibia-pulse-backend
-            -Dsonar.organization=filiperichterbarcellos
+            -Dsonar.projectKey=Filiperichterbarcellos_tibia-pulse-backend
+            -Dsonar.organization=tibia-pulse
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
 
       - name: Enforce Quality Gate
