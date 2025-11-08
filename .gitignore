@@ -7,3 +7,5 @@ node_modules/
 # test coverage outputs
 coverage/
 
+
+/src/generated/prisma

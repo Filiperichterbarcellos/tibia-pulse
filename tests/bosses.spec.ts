@@ -6,7 +6,6 @@ describe('Bosses', () => {
     const res = await request(app).get('/api/bosses');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.bosses)).toBe(true);
-    // cobre mais linhas verificando algumas props
     if (res.body.bosses.length > 0) {
       expect(res.body.bosses[0]).toHaveProperty('name');
       expect(res.body.bosses[0]).toHaveProperty('location');

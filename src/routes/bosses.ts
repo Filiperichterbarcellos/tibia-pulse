@@ -1,14 +1,24 @@
-import { Router } from 'express';
+import { Router } from 'express'
+import { getBoostableBosses, getKillStatistics } from '../services/bosses'
 
-const router = Router();
+const bosses = Router()
 
-router.get('/api/bosses', (_req, res) => {
-  res.status(200).json({
-    bosses: [
-      { name: 'Orshabaal', location: 'Edron', respawn: 'rare' },
-      { name: 'Morgaroth', location: 'Darashia', respawn: 'very rare' }
-    ]
-  });
-});
+bosses.get('/boostable', async (_req, res, next) => {
+  try {
+    const data = await getBoostableBosses()
+    if (!data) return res.status(404).json({ error: 'not found' })
+    res.json(data)
+  } catch (e) { next(e) }
+})
 
-export default router;
+bosses.get('/killstats/:world', async (req, res, next) => {
+  try {
+    const world = String(req.params.world || '').trim()
+    if (!world) return res.status(400).json({ error: 'missing world' })
+    const data = await getKillStatistics(world)
+    if (!data) return res.status(404).json({ error: 'not found' })
+    res.json(data)
+  } catch (e) { next(e) }
+})
+
+export default bosses

@@ -1,6 +1,10 @@
-import { app } from './app';
+import 'dotenv/config'
+import app from './app'
 
-const port = process.env.PORT || 3000;
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(port, () => console.log(`Server on :${port}`));
-}
+const HOST = '127.0.0.1'
+const PORT = Number(process.env.PORT) || 4000
+
+console.log('[server] booting...')
+app.listen(PORT, HOST, () => {
+  console.log(`[server] listening on http://${HOST}:${PORT}`)
+})

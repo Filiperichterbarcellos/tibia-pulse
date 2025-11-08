@@ -1,14 +1,13 @@
-import { Router } from 'express';
-import health from './health';
-import bosses from './bosses';
-import market from './market';
-import calculator from './calculator';
+import { Router } from 'express'
+import characters from './characters'
+import bosses from './bosses'
+import worlds from './worlds'   
 
-export const router = Router();
+const router = Router()
 
-router.use(health);
-router.use(bosses);
-router.use(market);
-router.use(calculator);
+router.get('/_test', (_req, res) => res.json({ route: 'ok' }))
+router.use('/characters', characters)
+router.use('/bosses', bosses)
+router.use('/worlds', worlds)  
 
-export default router;
+export default router
