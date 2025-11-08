@@ -7,24 +7,23 @@ export const swaggerSpec: OpenAPIV3.Document = {
     title: 'Tibia Pulse API',
     version: '1.0.0',
     description:
-      'API do Tibia Pulse — autenticação, favoritos e (demais módulos).',
+      'API do Tibia Pulse — autenticação, favoritos e módulos (worlds, bosses, market, calculator).',
   },
-  servers: [
-    { url: 'http://localhost:3000', description: 'Local' },
-  ],
+  servers: [{ url: 'http://localhost:3000', description: 'Local' }],
   tags: [
     { name: 'Auth', description: 'Registro, login e identidade do usuário' },
     { name: 'Favorites', description: 'Gerenciamento de favoritos' },
+    { name: 'Worlds', description: 'Listagem e detalhe de mundos' },
+    { name: 'Bosses', description: 'Bosses boostáveis e estatísticas de kills' },
+    { name: 'Market', description: 'Bazar/Leilões de personagens' },
+    { name: 'Calculator', description: 'Calculadoras diversas (Tibia Coin, etc.)' },
   ],
   components: {
     securitySchemes: {
-      bearerAuth: {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-      },
+      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
     },
     schemas: {
+      // ==== Usuário / Auth ====
       User: {
         type: 'object',
         properties: {
@@ -60,6 +59,8 @@ export const swaggerSpec: OpenAPIV3.Document = {
         },
         required: ['token', 'user'],
       },
+
+      // ==== Favorites ====
       Favorite: {
         type: 'object',
         properties: {
@@ -84,53 +85,127 @@ export const swaggerSpec: OpenAPIV3.Document = {
       FavoriteListResponse: {
         type: 'object',
         properties: {
-          favorites: {
-            type: 'array',
-            items: { $ref: '#/components/schemas/Favorite' },
-          },
+          favorites: { type: 'array', items: { $ref: '#/components/schemas/Favorite' } },
         },
         required: ['favorites'],
       },
-      ErrorResponse: {
+
+      // ==== Worlds ====
+      World: {
         type: 'object',
         properties: {
-          error: { type: 'string' },
-          details: { type: 'object', nullable: true },
+          name: { type: 'string' },
+          players_online: { type: 'integer' },
+          location: { type: 'string' },
+          pvp_type: { type: 'string' },
+          battleye_status: { type: 'string' },
+          online_record: {
+            type: 'object',
+            properties: {
+              players: { type: 'integer', nullable: true },
+              date: { type: 'string', nullable: true },
+            },
+          },
         },
+        required: ['name'],
+      },
+      WorldListResponse: {
+        type: 'object',
+        properties: {
+          players_online_total: { type: 'integer' },
+          count: { type: 'integer' },
+          worlds: { type: 'array', items: { $ref: '#/components/schemas/World' } },
+        },
+        required: ['count', 'worlds'],
+      },
+
+      // ==== Bosses ====
+      BossKillStatsResponse: {
+        type: 'object',
+        properties: {
+          world: { type: 'string' },
+          total: {
+            type: 'object',
+            properties: {
+              last_day_killed: { type: 'integer' },
+              last_week_killed: { type: 'integer' },
+              last_day_players_killed: { type: 'integer' },
+              last_week_players_killed: { type: 'integer' },
+            },
+          },
+          entries: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                race: { type: 'string' },
+                last_day_killed: { type: 'integer' },
+                last_week_killed: { type: 'integer' },
+                last_day_players_killed: { type: 'integer' },
+                last_week_players_killed: { type: 'integer' },
+              },
+            },
+          },
+        },
+        required: ['world', 'entries'],
+      },
+
+      // ==== Market ====
+      Auction: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          level: { type: 'integer' },
+          vocation: { type: 'string' },
+          world: { type: 'string' },
+          currentBid: { type: 'integer' },
+          hasBid: { type: 'boolean' },
+          endTime: { type: 'string' },
+          url: { type: 'string' },
+        },
+        required: ['name', 'level', 'vocation', 'world', 'currentBid', 'url'],
+      },
+      AuctionListResponse: {
+        type: 'object',
+        properties: {
+          auctions: { type: 'array', items: { $ref: '#/components/schemas/Auction' } },
+        },
+        required: ['auctions'],
+      },
+
+      // ==== Calculator ====
+      CalculatorCoinsResponse: {
+        type: 'object',
+        properties: { coins: { type: 'integer' } },
+        required: ['coins'],
+      },
+
+      // ==== Genérico ====
+      OkPing: {
+        type: 'object',
+        properties: { ok: { type: 'boolean' } },
+        required: ['ok'],
+      },
+      ErrorResponse: {
+        type: 'object',
+        properties: { error: { type: 'string' }, details: { type: 'object', nullable: true } },
         required: ['error'],
       },
     },
   },
   paths: {
+    // ===== Auth =====
     '/api/auth/register': {
       post: {
         tags: ['Auth'],
         summary: 'Registrar usuário',
         requestBody: {
           required: true,
-          content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/AuthRegisterRequest' },
-            },
-          },
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AuthRegisterRequest' } } },
         },
         responses: {
-          '201': {
-            description: 'Usuário criado',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/AuthResponse' },
-              },
-            },
-          },
-          '409': {
-            description: 'E-mail já cadastrado',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/ErrorResponse' },
-              },
-            },
-          },
+          '201': { description: 'Usuário criado', content: { 'application/json': { schema: { $ref: '#/components/schemas/AuthResponse' } } } },
+          '409': { description: 'E-mail já cadastrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '400': { description: 'Body inválido' },
         },
       },
@@ -141,29 +216,11 @@ export const swaggerSpec: OpenAPIV3.Document = {
         summary: 'Login',
         requestBody: {
           required: true,
-          content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/AuthLoginRequest' },
-            },
-          },
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/AuthLoginRequest' } } },
         },
         responses: {
-          '200': {
-            description: 'Autenticado',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/AuthResponse' },
-              },
-            },
-          },
-          '401': {
-            description: 'Credenciais inválidas',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/ErrorResponse' },
-              },
-            },
-          },
+          '200': { description: 'Autenticado', content: { 'application/json': { schema: { $ref: '#/components/schemas/AuthResponse' } } } },
+          '401': { description: 'Credenciais inválidas', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '400': { description: 'Body inválido' },
         },
       },
@@ -178,11 +235,7 @@ export const swaggerSpec: OpenAPIV3.Document = {
             description: 'OK',
             content: {
               'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: { user: { $ref: '#/components/schemas/User' } },
-                  required: ['user'],
-                },
+                schema: { type: 'object', properties: { user: { $ref: '#/components/schemas/User' } }, required: ['user'] },
               },
             },
           },
@@ -190,29 +243,18 @@ export const swaggerSpec: OpenAPIV3.Document = {
         },
       },
     },
+
+    // ===== Favorites =====
     '/api/favorites': {
       get: {
         tags: ['Favorites'],
         summary: 'Listar favoritos',
         security: [{ bearerAuth: [] }],
         parameters: [
-          {
-            in: 'query',
-            name: 'type',
-            schema: { type: 'string', enum: ['AUCTION', 'BOSS'] },
-            required: false,
-            description: 'Filtra por tipo',
-          },
+          { in: 'query', name: 'type', schema: { type: 'string', enum: ['AUCTION', 'BOSS'] }, required: false, description: 'Filtra por tipo' },
         ],
         responses: {
-          '200': {
-            description: 'OK',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/FavoriteListResponse' },
-              },
-            },
-          },
+          '200': { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/FavoriteListResponse' } } } },
           '401': { description: 'Não autenticado' },
         },
       },
@@ -222,22 +264,14 @@ export const swaggerSpec: OpenAPIV3.Document = {
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
-          content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/FavoriteCreateRequest' },
-            },
-          },
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/FavoriteCreateRequest' } } },
         },
         responses: {
           '201': {
             description: 'Criado',
             content: {
               'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: { favorite: { $ref: '#/components/schemas/Favorite' } },
-                  required: ['favorite'],
-                },
+                schema: { type: 'object', properties: { favorite: { $ref: '#/components/schemas/Favorite' } }, required: ['favorite'] },
               },
             },
           },
@@ -252,18 +286,113 @@ export const swaggerSpec: OpenAPIV3.Document = {
         tags: ['Favorites'],
         summary: 'Remover favorito',
         security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            in: 'path',
-            name: 'id',
-            schema: { type: 'string' },
-            required: true,
-          },
-        ],
+        parameters: [{ in: 'path', name: 'id', schema: { type: 'string' }, required: true }],
         responses: {
           '204': { description: 'Removido' },
           '404': { description: 'Não encontrado' },
           '401': { description: 'Não autenticado' },
+        },
+      },
+    },
+
+    // ===== Worlds =====
+    '/api/worlds': {
+      get: {
+        tags: ['Worlds'],
+        summary: 'Listar mundos com filtros/ordenação',
+        parameters: [
+          { in: 'query', name: 'type', schema: { type: 'string' }, required: false, description: 'Filtro por pvp type (e.g., optional, open, retro)' },
+          { in: 'query', name: 'battleye', schema: { type: 'string', enum: ['protected', 'unprotected'] }, required: false },
+          { in: 'query', name: 'location', schema: { type: 'string', enum: ['EU', 'NA', 'SA'] }, required: false },
+          { in: 'query', name: 'sort', schema: { type: 'string', enum: ['name', 'players_online'] }, required: false },
+          { in: 'query', name: 'order', schema: { type: 'string', enum: ['asc', 'desc'] }, required: false },
+          { in: 'query', name: 'limit', schema: { type: 'integer', minimum: 1 }, required: false },
+        ],
+        responses: {
+          '200': { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/WorldListResponse' } } } },
+          '404': { description: 'Não encontrado' },
+        },
+      },
+    },
+    '/api/worlds/{name}': {
+      get: {
+        tags: ['Worlds'],
+        summary: 'Detalhe de um mundo',
+        parameters: [{ in: 'path', name: 'name', schema: { type: 'string' }, required: true }],
+        responses: {
+          '200': { description: 'OK' },
+          '404': { description: 'Não encontrado' },
+        },
+      },
+    },
+
+    // ===== Bosses =====
+    '/api/bosses/boostable': {
+      get: {
+        tags: ['Bosses'],
+        summary: 'Lista bosses boostáveis (TibiaData)',
+        responses: {
+          '200': { description: 'OK' },
+          '404': { description: 'Não encontrado' },
+        },
+      },
+    },
+    '/api/bosses/killstats/{world}': {
+      get: {
+        tags: ['Bosses'],
+        summary: 'Estatísticas de kills por world',
+        parameters: [{ in: 'path', name: 'world', schema: { type: 'string' }, required: true }],
+        responses: {
+          '200': { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/BossKillStatsResponse' } } } },
+          '404': { description: 'Não encontrado' },
+          '400': { description: 'Parâmetro ausente/ inválido' },
+        },
+      },
+    },
+
+    // ===== Market =====
+    '/api/market': {
+      get: {
+        tags: ['Market'],
+        summary: 'Ping da rota de Market',
+        responses: {
+          '200': { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/OkPing' } } } },
+        },
+      },
+    },
+    '/api/market/auctions': {
+      get: {
+        tags: ['Market'],
+        summary: 'Lista leilões de personagens (Character Bazaar)',
+        parameters: [
+          { in: 'query', name: 'world', schema: { type: 'string' }, required: false },
+          { in: 'query', name: 'vocation', schema: { type: 'string' }, required: false },
+          { in: 'query', name: 'minLevel', schema: { type: 'integer', minimum: 1 }, required: false },
+          { in: 'query', name: 'maxLevel', schema: { type: 'integer', minimum: 1 }, required: false },
+          { in: 'query', name: 'page', schema: { type: 'integer', minimum: 1 }, required: false },
+          { in: 'query', name: 'order', schema: { type: 'string', enum: ['price', 'level', 'end'] }, required: false },
+          { in: 'query', name: 'sort', schema: { type: 'string', enum: ['asc', 'desc'] }, required: false },
+        ],
+        responses: {
+          '200': { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/AuctionListResponse' } } } },
+          '400': { description: 'Parâmetros inválidos' },
+          '502': { description: 'Erro na origem (scraping / upstream)' },
+        },
+      },
+    },
+
+    // ===== Calculator =====
+    '/api/calculator/tibia-coin': {
+      get: {
+        tags: ['Calculator'],
+        summary: 'Calcula quantas Tibia Coins são necessárias para pagar um preço em gold',
+        parameters: [
+          { in: 'query', name: 'price', schema: { type: 'integer', minimum: 1 }, required: true, description: 'Preço em gold (ex.: 600000)' },
+          { in: 'query', name: 'tc', schema: { type: 'integer', minimum: 1 }, required: true, description: 'Preço de 1 TC em gold (ex.: 25000)' },
+        ],
+        responses: {
+          '200': { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/CalculatorCoinsResponse' } } } },
+          '400': { description: 'Parâmetros inválidos' },
         },
       },
     },

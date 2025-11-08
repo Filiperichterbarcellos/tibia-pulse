@@ -1,30 +1,41 @@
 /** @type {import('jest').Config} */
 module.exports = {
-  // Usa o preset do ts-jest para compilar TypeScript
   preset: 'ts-jest',
-
-  // Ambiente Node.js (backend)
   testEnvironment: 'node',
 
-  // Carrega variáveis do .env antes de rodar os testes
+  // carrega .env antes dos testes
   setupFiles: ['dotenv/config'],
 
-  // Onde os testes ficam localizados
+  // onde estão os testes
   roots: ['<rootDir>/tests'],
 
-  // Extensões reconhecidas
-  moduleFileExtensions: ['ts', 'js', 'json'],
+  // resolver alias "@/*" e também permitir 'src/...'
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^src/(.*)$': '<rootDir>/src/$1',
+  },
+  moduleDirectories: ['node_modules', '<rootDir>/src'],
 
-  // Compila arquivos .ts usando ts-jest (modo isolado para performance)
-  transform: { '^.+\\.ts$': ['ts-jest', { isolatedModules: true }] },
+  // compilar TS
+  transform: { '^.+\\.ts$': ['ts-jest'] },
 
-  // Coleta cobertura dos arquivos em src (excluindo types.d.ts)
+
+  // cobertura só do que importa
   collectCoverage: true,
-  collectCoverageFrom: ['src/**/*.ts', '!src/**/types.d.ts'],
+  collectCoverageFrom: [
+    'src/**/*.{ts,tsx}',
+    '!src/server.ts',
+    '!src/swagger.ts',
+    '!src/types/**',
+    '!src/lib/prisma.ts',
+    '!src/**/index.ts',
+  ],
+  coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],
 
-  // Diretório de saída da cobertura
   coverageDirectory: 'coverage',
+  coverageReporters: ['lcov', 'text', 'html'],
 
-  // Formatos de relatório para integração com o SonarCloud
-  coverageReporters: ['lcov', 'text-summary'],
-};
+  restoreMocks: true,
+  clearMocks: true,
+  resetMocks: true,
+}

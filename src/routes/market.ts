@@ -1,24 +1,38 @@
-import { Router } from 'express';
-import * as svc from '../services/marketService';
+import { Router } from 'express'
+import { z } from 'zod'
+import { getAuctions } from '../services/marketService'
 
-const router = Router();
+const router = Router()
+
+// Raiz: útil pro teste de "200"
+router.get('/', (_req, res) => res.json({ ok: true }))
+
+const filtersSchema = z.object({
+  world: z.string().optional(),
+  vocation: z.string().optional(),
+  minLevel: z.coerce.number().int().positive().optional(),
+  maxLevel: z.coerce.number().int().positive().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  order: z.enum(['price', 'level', 'end']).optional(),
+  sort: z.enum(['asc', 'desc']).optional(),
+})
 
 /**
- * GET /api/market/auctions?world=&vocation=&minLevel=&maxLevel=
+ * GET /api/market/auctions?world=&vocation=&minLevel=&maxLevel=&page=&order=&sort=
  */
-router.get('/api/market/auctions', async (req, res) => {
-  try {
-    const auctions = await svc.getAuctions({
-      world: req.query.world as string | undefined,
-      vocation: req.query.vocation as string | undefined,
-      minLevel: req.query.minLevel ? Number(req.query.minLevel) : undefined,
-      maxLevel: req.query.maxLevel ? Number(req.query.maxLevel) : undefined,
-    });
-    res.json({ auctions });
-  } catch (err) {
-    console.error('GET /api/market/auctions ->', err);
-    res.status(502).json({ error: 'upstream error' });
+router.get('/auctions', async (req, res) => {
+  const parsed = filtersSchema.safeParse(req.query)
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() })
   }
-});
 
-export default router;
+  try {
+    const auctions = await getAuctions(parsed.data)
+    return res.json({ auctions })
+  } catch (err) {
+    console.error('GET /api/market/auctions ->', err)
+    return res.status(502).json({ error: 'upstream error' })
+  }
+})
+
+export default router

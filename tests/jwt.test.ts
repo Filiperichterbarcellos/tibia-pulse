@@ -1,14 +1,10 @@
 import { signToken, verifyToken } from '../src/utils/jwt'
 
-
-const payload = { userId: '123', email: 'teste@tibiapulse.com' }
-
-try {
-  const token = signToken(payload)
-  console.log('Token gerado:', token)
-
-  const decoded = verifyToken<typeof payload>(token)
-  console.log('Token verificado:', decoded)
-} catch (err) {
-  console.error(' Erro ao gerar/verificar token:', err)
-}
+describe('JWT utils', () => {
+  it('gera e valida token JWT', () => {
+    const token = signToken({ userId: '123', email: 'teste@tibiapulse.com' })
+    const payload = verifyToken<{ userId: string; email: string }>(token)
+    expect(payload.userId).toBe('123')
+    expect(payload.email).toBe('teste@tibiapulse.com')
+  })
+})
