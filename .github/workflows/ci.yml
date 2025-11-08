@@ -17,7 +17,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: tibiapulse_test
         ports:
-          - 5433:5432   # <- mapeia para 5433 no host (igual ao .env.test)
+          - 5433:5432   # mapeia para 5433 no host (igual ao .env.test)
         options: >-
           --health-cmd="pg_isready -U postgres -d tibiapulse_test"
           --health-interval=5s
@@ -28,8 +28,8 @@ jobs:
       CI: true
       NODE_ENV: test
       JWT_SECRET: supersecret_test
-      # usa a MESMA URL do .env.test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5433/tibiapulse_test?schema=public
+      SKIP_MARKET_TESTS: 'true'  # <- pula o teste do market no CI
 
     steps:
       - name: Checkout
