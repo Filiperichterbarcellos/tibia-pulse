@@ -5,17 +5,31 @@ on:
     branches: [ main ]
   pull_request:
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
   test-and-sonar:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tibiapulse_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
     env:
       NODE_ENV: test
-      JWT_SECRET: test-secret
+      JWT_SECRET: supersecret_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tibiapulse_test?schema=public
+      # Sonar usa o sonar-project.properties; o token vem dos secrets
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -29,23 +43,33 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install deps
         run: npm ci
 
-      - name: Generate Prisma Client
-        run: npx prisma generate
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 -U postgres && break
+            echo "Postgres not ready yet..."
+            sleep 2
+          done
 
-      - name: Run tests with coverage (Jest)
+      - name: Prisma migrate reset (test DB)
+        run: npx prisma migrate reset --force
+
+      - name: Run tests with coverage (CI mode)
+        env:
+          CI: "true"
         run: npm run test:coverage
 
-      - name: Upload coverage artifact
+      - name: Upload coverage report (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage
 
-      - name: SonarCloud Scan
+      - name: SonarCloud Scan (with Quality Gate)
         uses: SonarSource/sonarcloud-github-action@v2
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true
