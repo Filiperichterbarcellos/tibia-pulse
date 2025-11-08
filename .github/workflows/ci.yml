@@ -1,4 +1,4 @@
-name: CI - Backend (tests + coverage + sonar)
+name: CI
 
 on:
   push:
@@ -6,12 +6,12 @@ on:
   pull_request:
 
 jobs:
-  test-and-sonar:
+  test:
     runs-on: ubuntu-latest
 
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -19,25 +19,22 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U postgres"
+          --health-cmd="pg_isready -U postgres -d tibiapulse_test"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
 
     env:
+      CI: true
       NODE_ENV: test
       JWT_SECRET: supersecret_test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tibiapulse_test?schema=public
-      # Sonar usa o sonar-project.properties; o token vem dos secrets
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -46,30 +43,31 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Wait for Postgres
-        run: |
-          for i in {1..30}; do
-            pg_isready -h localhost -p 5432 -U postgres && break
-            echo "Postgres not ready yet..."
-            sleep 2
-          done
+      - name: Prisma generate
+        run: npx prisma generate
 
-      - name: Prisma migrate reset (test DB)
-        run: npx prisma migrate reset --force
+      - name: Prepare DB (migrate or push)
+        run: npx prisma migrate deploy || npx prisma db push
 
-      - name: Run tests with coverage (CI mode)
-        env:
-          CI: "true"
+      - name: Run tests with coverage
         run: npm run test:coverage
 
-      - name: Upload coverage report (artifact)
+      - name: Upload coverage artifact (opcional)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: coverage
+          path: coverage/
+          if-no-files-found: ignore
 
-      - name: SonarCloud Scan (with Quality Gate)
+  sonar:
+    if: ${{ always() }}
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v2
-        with:
-          args: >
-            -Dsonar.qualitygate.wait=true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

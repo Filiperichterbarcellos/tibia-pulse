@@ -1,11 +1,19 @@
 {
+  "name": "tibia-pulse-backend",
+  "version": "1.0.0",
+  "description": "Backend do projeto Tibia Pulse",
+  "main": "dist/server.js",
+  "type": "module",
   "scripts": {
     "dev": "tsx -r tsconfig-paths/register src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node -r tsconfig-paths/register dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "jest",
-    "test:coverage": "jest --coverage"
+    "pretest": "dotenv -e .env.test -- npx prisma migrate deploy || dotenv -e .env.test -- npx prisma db push",
+    "test": "dotenv -e .env.test -- jest",
+    "test:coverage": "dotenv -e .env.test -- jest --coverage",
+    "test:unit": "dotenv -e .env.test -- jest --coverage --testPathIgnorePatterns='.*\\.int\\.spec\\.ts$'",
+    "test:int": "dotenv -e .env.test -- jest --coverage --testPathPattern='.*\\.int\\.spec\\.ts$'"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
