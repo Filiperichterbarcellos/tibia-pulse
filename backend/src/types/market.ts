@@ -1,18 +1,27 @@
-export type Vocation =
-  | 'Knight' | 'Elite Knight'
-  | 'Paladin' | 'Royal Paladin'
-  | 'Sorcerer' | 'Master Sorcerer'
-  | 'Druid' | 'Elder Druid'
+export type Skills = Partial<{
+  magic: number
+  club: number
+  sword: number
+  axe: number
+  distance: number
+  shielding: number
+  fishing: number
+  fist: number
+}>
 
-export interface Auction {
+export type Auction = {
   name: string
   level: number
-  vocation: Vocation | string
+  vocation: string
   world: string
-  currentBid: number // em gold
+  currentBid: number
   hasBid: boolean
-  endTime: string    // ISO
-  url: string        // link do leilão oficial
-  outfits?: string[]
-  mounts?: string[]
+  endTime: string
+  url: string
+  portrait: string
+
+  // novos (opcionais)
+  charmPoints?: number
+  bossPoints?: number
+  skills?: Skills
 }

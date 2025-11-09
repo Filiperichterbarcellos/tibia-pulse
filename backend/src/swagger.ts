@@ -1,4 +1,4 @@
-// src/swagger.ts
+// src/utils/swagger.ts
 import { OpenAPIV3 } from 'openapi-types'
 
 export const swaggerSpec: OpenAPIV3.Document = {
@@ -14,6 +14,7 @@ export const swaggerSpec: OpenAPIV3.Document = {
     { name: 'Auth', description: 'Registro, login e identidade do usuário' },
     { name: 'Favorites', description: 'Gerenciamento de favoritos' },
     { name: 'Worlds', description: 'Listagem e detalhe de mundos' },
+    { name: 'Characters', description: 'Busca e detalhes de personagens (TibiaData API)' },
     { name: 'Bosses', description: 'Bosses boostáveis e estatísticas de kills' },
     { name: 'Market', description: 'Bazar/Leilões de personagens' },
     { name: 'Calculator', description: 'Calculadoras diversas (Tibia Coin, etc.)' },
@@ -162,6 +163,9 @@ export const swaggerSpec: OpenAPIV3.Document = {
           hasBid: { type: 'boolean' },
           endTime: { type: 'string' },
           url: { type: 'string' },
+
+          // <- NOVO: portrait opcional
+          portrait: { type: 'string', nullable: true },
         },
         required: ['name', 'level', 'vocation', 'world', 'currentBid', 'url'],
       },
@@ -322,6 +326,42 @@ export const swaggerSpec: OpenAPIV3.Document = {
         responses: {
           '200': { description: 'OK' },
           '404': { description: 'Não encontrado' },
+        },
+      },
+    },
+
+    // ===== Characters =====
+    '/api/characters/{name}': {
+      get: {
+        tags: ['Characters'],
+        summary: 'Detalhes de um personagem (TibiaData)',
+        parameters: [
+          { in: 'path', name: 'name', required: true, schema: { type: 'string' }, description: 'Nome do personagem (ex.: Kaamez)' },
+        ],
+        responses: {
+          '200': {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    character: { type: 'object' },
+                    information: { type: 'object' },
+                  },
+                  required: ['character'],
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'Personagem não encontrado',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
+          '502': {
+            description: 'Erro na origem (upstream)',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
         },
       },
     },
