@@ -1,0 +1,13 @@
+node_modules
+.env
+coverage
+dist
+node_modules/
+
+# test coverage outputs
+coverage/
+
+
+/src/generated/prisma
+.env.test
+.env
