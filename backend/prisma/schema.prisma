@@ -31,6 +31,7 @@ model Favorite {
   type      FavoriteType
   key       String        // ex: auctionId ou bossSlug
   notes     String?       // opcional
+  snapshot  Json?
   createdAt DateTime      @default(now())
 
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)

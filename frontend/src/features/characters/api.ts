@@ -6,6 +6,12 @@ export type DeathEntry = {
   reason?: string
 }
 
+export type CharacterExperienceEntry = {
+  date: string
+  expChange: number
+  level: number
+}
+
 export type CharacterSummary = {
   name: string
   level: number
@@ -13,9 +19,22 @@ export type CharacterSummary = {
   world?: string
   residence?: string
   sex?: string
-  lastLogin?: string | null
   created?: string | null
-  deaths?: DeathEntry[] // opcional
+  guild?: string
+  lastLogin?: string | null
+  accountStatus?: string
+  house?: string
+  comment?: string
+  formerNames?: string
+  title?: string
+  formerWorld?: string
+  achievementPoints?: number
+  currentXP?: number
+  xpToNextLevel?: number
+  averageDailyXP?: number
+  bestDayXP?: { date: string; value: number } | null
+  history?: CharacterExperienceEntry[]
+  deaths: DeathEntry[]
 }
 
 export async function getCharacter(name: string): Promise<{ character: CharacterSummary }> {
@@ -29,6 +48,11 @@ export async function getCharacter(name: string): Promise<{ character: Character
     : Array.isArray(c?.deaths?.data) ? c.deaths.data
     : []
 
+  const history: CharacterExperienceEntry[] =
+    Array.isArray(c?.history) ? c.history
+    : Array.isArray(c?.history?.data) ? c.history.data
+    : []
+
   const character: CharacterSummary = {
     name: c?.name,
     level: c?.level,
@@ -36,10 +60,32 @@ export async function getCharacter(name: string): Promise<{ character: Character
     world: c?.world,
     residence: c?.residence,
     sex: c?.sex,
-    lastLogin: c?.last_login ?? c?.lastLogin ?? null,
     created: c?.created ?? null,
+    guild: c?.guild,
+    lastLogin: c?.last_login ?? c?.lastLogin ?? null,
+    accountStatus: c?.accountStatus ?? c?.account_status,
+    house: c?.house,
+    comment: c?.comment,
+    formerNames: c?.formerNames,
+    title: c?.title,
+    formerWorld: c?.formerWorld,
+    achievementPoints: c?.achievementPoints ?? c?.achievement_points,
+    currentXP: asNumber(c?.currentXP ?? c?.experience),
+    xpToNextLevel: asNumber(c?.xpToNextLevel ?? c?.xp_to_next_level),
+    averageDailyXP: asNumber(c?.averageDailyXP ?? c?.avg_daily_xp),
+    bestDayXP: c?.bestDayXP ?? c?.best_day ?? null,
+    history,
     deaths,
   }
 
   return { character }
+}
+
+function asNumber(value: unknown) {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/[^\d-]/g, ''))
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
 }

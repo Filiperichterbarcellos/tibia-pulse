@@ -1,4 +1,3 @@
-import Container from '@/components/Container'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -18,19 +17,33 @@ export default function CharacterSearch() {
   }
 
   return (
-    <Container>
-      <h1 className="text-xl font-semibold mb-3">Buscar personagem</h1>
+    <div className="retro-layout space-y-6">
+      <section className="retro-hero">
+        <div>
+          <p className="retro-badge">Personagens</p>
+          <h1>Busque qualquer personagem do Tibia</h1>
+          <p>Utilizamos a API do TibiaData para trazer o nível, vocação e últimas mortes.</p>
+        </div>
+      </section>
 
-      <form onSubmit={onSubmit} className="card p-4 space-y-3 max-w-xl">
-        <input
-          className="input"
-          placeholder="Ex.: Kaamez"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        {error && <p className="text-rose-300 text-sm">{error}</p>}
-        <button className="btn" type="submit">Buscar</button>
-      </form>
-    </Container>
+      <section className="retro-panel max-w-xl">
+        <form onSubmit={onSubmit} className="space-y-3">
+          <label className="retro-input">
+            <span>Nome do personagem</span>
+            <div className="retro-input__field">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex.: Kaamez"
+              />
+            </div>
+          </label>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <button type="submit" className="retro-auth w-full justify-center">
+            Buscar
+          </button>
+        </form>
+      </section>
+    </div>
   )
 }

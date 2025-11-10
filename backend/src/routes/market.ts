@@ -11,8 +11,8 @@ router.get('/', (_req: Request, res: Response) => res.json({ ok: true }))
 const filtersSchema = z.object({
   world: z.string().optional(),
   vocation: z.string().optional(),
-  minLevel: z.coerce.number().int().positive().optional(),
-  maxLevel: z.coerce.number().int().positive().optional(),
+  minLevel: z.coerce.number().int().nonnegative().optional(),
+  maxLevel: z.coerce.number().int().nonnegative().optional(),
   page: z.coerce.number().int().positive().default(1),
   order: z.enum(['price', 'level', 'end']).optional(),
   sort: z.enum(['asc', 'desc']).optional(),

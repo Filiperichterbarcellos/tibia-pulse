@@ -70,7 +70,5 @@
     "swagger-ui-express": "^5.0.1",
     "zod": "^4.1.12",
     "zustand": "^5.0.8"
-
   }
 }
-

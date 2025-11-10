@@ -1,29 +1,68 @@
 import { create } from 'zustand'
+import { setAuthHeader } from '@/lib/apiClient'
+import { fetchSession } from './api'
 
 type User = {
   id: string
   email: string
+  name?: string | null
 }
 
 type AuthState = {
   token: string | null
   user: User | null
-  setToken: (t: string | null) => void
-  setUser: (u: User | null) => void
+  status: 'idle' | 'loading' | 'ready'
+  setSession: (session: { token: string; user: User }) => void
+  hydrateProfile: () => Promise<void>
   logout: () => void
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  token: localStorage.getItem('tp_token'),
+const TOKEN_KEY = 'tp_token'
+
+function readToken() {
+  if (typeof window === 'undefined') return null
+  return window.localStorage.getItem(TOKEN_KEY)
+}
+
+function persistToken(token: string | null) {
+  if (typeof window === 'undefined') return
+  if (token) window.localStorage.setItem(TOKEN_KEY, token)
+  else window.localStorage.removeItem(TOKEN_KEY)
+}
+
+const initialToken = readToken()
+if (initialToken) {
+  setAuthHeader(initialToken)
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  token: initialToken,
   user: null,
-  setToken: (t) => {
-    if (t) localStorage.setItem('tp_token', t)
-    else localStorage.removeItem('tp_token')
-    set({ token: t })
+  status: initialToken ? 'idle' : 'ready',
+
+  setSession: ({ token, user }) => {
+    persistToken(token)
+    setAuthHeader(token)
+    set({ token, user, status: 'ready' })
   },
-  setUser: (u) => set({ user: u }),
+
+  hydrateProfile: async () => {
+    const { token, status } = get()
+    if (!token || status === 'loading') return
+    set({ status: 'loading' })
+    try {
+      const data = await fetchSession()
+      set({ user: data?.user ?? null, status: 'ready' })
+    } catch {
+      persistToken(null)
+      setAuthHeader(null)
+      set({ token: null, user: null, status: 'ready' })
+    }
+  },
+
   logout: () => {
-    localStorage.removeItem('tp_token')
-    set({ token: null, user: null })
+    persistToken(null)
+    setAuthHeader(null)
+    set({ token: null, user: null, status: 'ready' })
   },
 }))

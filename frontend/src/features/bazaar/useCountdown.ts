@@ -1,23 +1,52 @@
 // src/features/bazaar/useCountdown.ts
 import { useEffect, useState } from 'react'
 
-export default function useCountdown(endTime?: string) {
-  const [text, setText] = useState('')
+type CountdownState = {
+  timeLeftText: string
+  ended: boolean
+}
+
+export default function useCountdown(endDate?: string | null) {
+  const [state, setState] = useState<CountdownState>({ timeLeftText: '', ended: false })
 
   useEffect(() => {
-    if (!endTime) return
-    const tick = () => {
-      const end = new Date(endTime).getTime()
-      const diff = end - Date.now()
-      if (diff <= 0) return setText('Ended')
-      const h = Math.floor(diff / 3_600_000)
-      const m = Math.floor((diff % 3_600_000) / 60_000)
-      setText(`${h}h ${m}m`)
+    if (!endDate) {
+      setState({ timeLeftText: 'Sem data', ended: false })
+      return
     }
-    tick()
-    const id = setInterval(tick, 30_000)
-    return () => clearInterval(id)
-  }, [endTime])
 
-  return { timeLeftText: text, ended: text === 'Ended' }
+    const tick = () => {
+      const timestamp = Date.parse(endDate)
+      if (Number.isNaN(timestamp)) {
+        setState({ timeLeftText: endDate, ended: false })
+        return
+      }
+
+      const diff = timestamp - Date.now()
+      if (diff <= 0) {
+        setState({ timeLeftText: 'Encerrado', ended: true })
+        return
+      }
+
+      const totalMinutes = Math.floor(diff / 60_000)
+      const days = Math.floor(totalMinutes / (60 * 24))
+      const hours = Math.floor((totalMinutes % (60 * 24)) / 60)
+      const minutes = totalMinutes % 60
+
+      const text =
+        days > 0
+          ? `${days}d ${hours}h`
+          : hours > 0
+            ? `${hours}h ${minutes}m`
+            : `${minutes}m`
+
+      setState({ timeLeftText: text, ended: false })
+    }
+
+    tick()
+    const id = window.setInterval(tick, 30_000)
+    return () => clearInterval(id)
+  }, [endDate])
+
+  return state
 }

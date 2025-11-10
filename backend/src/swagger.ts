@@ -14,7 +14,10 @@ export const swaggerSpec: OpenAPIV3.Document = {
     { name: 'Auth', description: 'Registro, login e identidade do usuário' },
     { name: 'Favorites', description: 'Gerenciamento de favoritos' },
     { name: 'Worlds', description: 'Listagem e detalhe de mundos' },
-    { name: 'Characters', description: 'Busca e detalhes de personagens (TibiaData API)' },
+    {
+      name: 'Characters',
+      description: 'Busca e detalhes de personagens (TibiaData + scraping tibia.com / GuildStats)',
+    },
     { name: 'Bosses', description: 'Bosses boostáveis e estatísticas de kills' },
     { name: 'Market', description: 'Bazar/Leilões de personagens' },
     { name: 'Calculator', description: 'Calculadoras diversas (Tibia Coin, etc.)' },
@@ -70,6 +73,7 @@ export const swaggerSpec: OpenAPIV3.Document = {
           type: { type: 'string', enum: ['AUCTION', 'BOSS'] },
           key: { type: 'string' },
           notes: { type: 'string', nullable: true },
+          snapshot: { type: 'object', additionalProperties: true, nullable: true },
           createdAt: { type: 'string', format: 'date-time' },
         },
         required: ['id', 'userId', 'type', 'key', 'createdAt'],
@@ -80,6 +84,7 @@ export const swaggerSpec: OpenAPIV3.Document = {
           type: { type: 'string', enum: ['AUCTION', 'BOSS'] },
           key: { type: 'string' },
           notes: { type: 'string' },
+          snapshot: { type: 'object', additionalProperties: true },
         },
         required: ['type', 'key'],
       },
@@ -155,26 +160,35 @@ export const swaggerSpec: OpenAPIV3.Document = {
       Auction: {
         type: 'object',
         properties: {
+          id: { type: 'integer', nullable: true },
           name: { type: 'string' },
           level: { type: 'integer' },
           vocation: { type: 'string' },
           world: { type: 'string' },
           currentBid: { type: 'integer' },
           hasBid: { type: 'boolean' },
-          endTime: { type: 'string' },
+          endDate: { type: 'string', format: 'date-time', nullable: true },
           url: { type: 'string' },
-
-          // <- NOVO: portrait opcional
-          portrait: { type: 'string', nullable: true },
+          outfitUrl: { type: 'string', nullable: true },
+          pvpType: { type: 'string', nullable: true },
+          charmPoints: { type: 'integer', nullable: true },
+          bossPoints: { type: 'integer', nullable: true },
+          skills: {
+            type: 'object',
+            additionalProperties: { type: 'integer' },
+            nullable: true,
+          },
         },
-        required: ['name', 'level', 'vocation', 'world', 'currentBid', 'url'],
+        required: ['name', 'level', 'vocation', 'world', 'currentBid', 'url', 'hasBid'],
       },
       AuctionListResponse: {
         type: 'object',
         properties: {
+          page: { type: 'integer' },
+          totalPages: { type: 'integer' },
           auctions: { type: 'array', items: { $ref: '#/components/schemas/Auction' } },
         },
-        required: ['auctions'],
+        required: ['page', 'totalPages', 'auctions'],
       },
 
       // ==== Calculator ====
@@ -182,6 +196,59 @@ export const swaggerSpec: OpenAPIV3.Document = {
         type: 'object',
         properties: { coins: { type: 'integer' } },
         required: ['coins'],
+      },
+      CharacterSummary: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          level: { type: 'integer' },
+          world: { type: 'string', nullable: true },
+          vocation: { type: 'string', nullable: true },
+          residence: { type: 'string', nullable: true },
+          guild: { type: 'string', nullable: true },
+          sex: { type: 'string', nullable: true },
+          created: { type: 'string', nullable: true, description: 'ISO date ou string bruta' },
+          lastLogin: { type: 'string', nullable: true, description: 'ISO date ou string bruta' },
+          accountStatus: { type: 'string', nullable: true },
+          house: { type: 'string', nullable: true },
+          comment: { type: 'string', nullable: true },
+          formerNames: { type: 'string', nullable: true },
+          title: { type: 'string', nullable: true },
+          formerWorld: { type: 'string', nullable: true },
+          achievementPoints: { type: 'integer', nullable: true },
+          currentXP: { type: 'integer', nullable: true },
+          xpToNextLevel: { type: 'integer', nullable: true },
+          averageDailyXP: { type: 'integer', nullable: true },
+          bestDayXP: {
+            type: 'object',
+            nullable: true,
+            properties: { date: { type: 'string' }, value: { type: 'integer' } },
+          },
+          history: {
+            type: 'array',
+            nullable: true,
+            items: {
+              type: 'object',
+              properties: {
+                date: { type: 'string' },
+                expChange: { type: 'integer' },
+                level: { type: 'integer' },
+              },
+            },
+          },
+          deaths: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                time: { type: 'string', nullable: true },
+                level: { type: 'integer' },
+                reason: { type: 'string' },
+              },
+            },
+          },
+        },
+        required: ['name', 'level', 'deaths'],
       },
 
       // ==== Genérico ====
@@ -334,7 +401,7 @@ export const swaggerSpec: OpenAPIV3.Document = {
     '/api/characters/{name}': {
       get: {
         tags: ['Characters'],
-        summary: 'Detalhes de um personagem (TibiaData)',
+        summary: 'Detalhes enriquecidos de um personagem (TibiaData + tibia.com + GuildStats)',
         parameters: [
           { in: 'path', name: 'name', required: true, schema: { type: 'string' }, description: 'Nome do personagem (ex.: Kaamez)' },
         ],
@@ -343,14 +410,7 @@ export const swaggerSpec: OpenAPIV3.Document = {
             description: 'OK',
             content: {
               'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    character: { type: 'object' },
-                    information: { type: 'object' },
-                  },
-                  required: ['character'],
-                },
+                schema: { $ref: '#/components/schemas/CharacterSummary' },
               },
             },
           },

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { AuthRequest } from '../middleware/requireAuth'
@@ -7,6 +8,7 @@ const createSchema = z.object({
   type: z.enum(['AUCTION', 'BOSS']),
   key: z.string().min(1),
   notes: z.string().optional(),
+  snapshot: z.record(z.string(), z.any()).optional(),
 })
 
 export const FavoriteController = {
@@ -24,11 +26,12 @@ export const FavoriteController = {
     if (!parsed.success) {
       return res.status(400).json({ error: 'invalid body', details: parsed.error.flatten() })
     }
-    const { type, key, notes } = parsed.data
+    const { type, key, notes, snapshot } = parsed.data
+    const safeSnapshot = snapshot as Prisma.InputJsonValue | undefined
 
     try {
       const favorite = await prisma.favorite.create({
-        data: { userId: req.user!.id, type, key, notes },
+        data: { userId: req.user!.id, type, key, notes, snapshot: safeSnapshot },
       })
       return res.status(201).json({ favorite })
     } catch (err: any) {

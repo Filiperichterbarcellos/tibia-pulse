@@ -1,31 +1,43 @@
+import clsx from 'clsx'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth/useAuthStore'
+import logo from '@/assets/logo.png'
+
+const NAV_LINKS = [
+  { to: '/characters', label: 'Personagens' },
+  { to: '/bazaar', label: 'Char Bazaar' },
+  { to: '/bosses', label: 'Bosses' },
+  { to: '/calculator', label: 'Calculadoras' },
+  { to: '/worlds', label: 'Worlds' },
+  { to: '/blog', label: 'Blog' },
+  { to: '/favorites', label: 'Favoritos' },
+]
 
 export default function Header() {
   const navigate = useNavigate()
-  const { token, logout } = useAuthStore()
-  const isActive = ({ isActive }: { isActive: boolean }) =>
-    `px-3 py-2 rounded-xl ${isActive ? 'bg-white/15' : 'hover:bg-white/10'}`
+  const token = useAuthStore((s) => s.token)
+  const logout = useAuthStore((s) => s.logout)
 
   return (
-    <header className="border-b border-white/10 bg-white/5 sticky top-0 backdrop-blur z-50">
-      <div className="container-pad flex items-center gap-4 h-14">
-        <Link to="/" className="font-semibold tracking-wide">Tibia Pulse</Link>
+    <header className="retro-header">
+      <div className="retro-header__inner">
+        <Link to="/" className="retro-logo">
+          <img src={logo} alt="Tibia Pulse" />
+          <span>Tibia Pulse</span>
+        </Link>
 
-        <nav className="flex items-center gap-2 text-sm">
-          <NavLink to="/characters" className={isActive}>Personagens</NavLink>
-          <NavLink to="/bazaar" className={isActive}>Bazaar</NavLink>
-          <NavLink to="/bosses" className={isActive}>Bosses</NavLink>
-          <NavLink to="/worlds" className={isActive}>Mundos</NavLink>
-          <NavLink to="/calculator" className={isActive}>Calculadora</NavLink>
-          <NavLink to="/blog" className={isActive}>Guia</NavLink>
-          <NavLink to="/favorites" className={isActive}>Favoritos</NavLink>
+        <nav className="retro-nav">
+          {NAV_LINKS.map((link) => (
+            <NavLink key={link.to} to={link.to} className={({ isActive }) => clsx('retro-nav-link', isActive && 'is-active')}>
+              {link.label}
+            </NavLink>
+          ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="retro-header__actions">
           {token ? (
             <button
-              className="btn"
+              className="retro-auth retro-auth--ghost"
               onClick={() => {
                 logout()
                 navigate('/login')
@@ -35,8 +47,8 @@ export default function Header() {
             </button>
           ) : (
             <>
-              <Link to="/login" className="btn">Entrar</Link>
-              <Link to="/register" className="btn">Criar conta</Link>
+              <Link to="/login" className="retro-auth retro-auth--ghost">Entrar</Link>
+              <Link to="/register" className="retro-auth">Criar conta</Link>
             </>
           )}
         </div>

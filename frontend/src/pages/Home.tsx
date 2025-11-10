@@ -25,7 +25,7 @@ export default function Home() {
               />
               <button
                 className="px-4 py-2 rounded-xl bg-brand-600 text-white font-medium hover:bg-brand-700"
-                onClick={()=> name && nav(`/character/${encodeURIComponent(name)}`)}
+                onClick={()=> name && nav(`/characters/${encodeURIComponent(name)}`)}
               >
                 Buscar
               </button>

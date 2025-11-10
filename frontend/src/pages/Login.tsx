@@ -1,28 +1,33 @@
 // src/pages/Login.tsx
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { api, setAuth } from '@/lib/base'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { login } from '@/features/auth/api'
+import { useAuthStore } from '@/features/auth/useAuthStore'
+
+type LocationState = { from?: string }
 
 export default function Login() {
   const nav = useNavigate()
+  const location = useLocation()
+  const setSession = useAuthStore((s) => s.setSession)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const redirectTo = (location.state as LocationState)?.from || '/'
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
     try {
-      const { data } = await api.post<{ token: string }>('/auth/login', { email, password })
-      if (data?.token) {
-        localStorage.setItem('token', data.token)
-        setAuth(data.token)
-        nav('/', { replace: true }) // <- v6 aceita (to, { replace, state })
-      } else {
+      const data = await login({ email, password })
+      if (!data?.token) {
         setError('Credenciais inválidas.')
+        return
       }
+      setSession({ token: data.token, user: data.user })
+      nav(redirectTo, { replace: true })
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Erro ao entrar.')
     } finally {
@@ -31,42 +36,52 @@ export default function Login() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-10">
-      <h1 className="text-xl font-semibold mb-4">Entrar</h1>
+    <div className="mx-auto max-w-md px-4 py-12">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl">
+        <h1 className="text-2xl font-semibold text-white">Bem-vindo de volta</h1>
+        <p className="text-sm text-white/60">Entre para salvar personagens favoritos no bazar.</p>
 
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm mb-1">E-mail</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2"
-            required
-          />
-        </div>
+        <form onSubmit={onSubmit} className="mt-6 space-y-4">
+          <label className="block text-sm">
+            <span className="mb-1 inline-block text-white/70">E-mail</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-emerald-500"
+              required
+            />
+          </label>
 
-        <div>
-          <label className="block text-sm mb-1">Senha</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2"
-            required
-          />
-        </div>
+          <label className="block text-sm">
+            <span className="mb-1 inline-block text-white/70">Senha</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-emerald-500"
+              required
+            />
+          </label>
 
-        {error && <div className="text-sm text-red-400">{error}</div>}
+          {error && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 disabled:opacity-60"
-        >
-          {loading ? 'Entrando…' : 'Entrar'}
-        </button>
-      </form>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:opacity-50"
+          >
+            {loading ? 'Entrando…' : 'Entrar'}
+          </button>
+        </form>
+
+        <p className="mt-4 text-center text-sm text-white/60">
+          Não tem conta?{' '}
+          <Link to="/register" className="text-emerald-300 underline">
+            Criar agora
+          </Link>
+        </p>
+      </div>
     </div>
   )
 }

@@ -1,7 +1,10 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
-import type { Auction, Skills } from '../types/market'
+import type { Auction, Skills, StoreItem, HirelingInfo, CharmInfo, GemsInfo } from '../types/market'
 import { TibiaDataClient } from './tibiadata'
+import { getWorlds } from './worlds'
+
+type CheerioInstance = ReturnType<typeof cheerio.load>
 
 type Filters = {
   world?: string
@@ -21,6 +24,17 @@ const detailCache = new Map<string, { at: number; data: Partial<Auction> }>()
 const LEVEL_CACHE_TTL = 10 * 60_000
 const levelCache = new Map<string, { at: number; level: number }>()
 const CONCURRENCY = 4
+const WORLD_META_TTL = 5 * 60_000
+const worldMetaCache = new Map<string, { at: number; meta: WorldMeta | undefined }>()
+
+type WorldMeta = {
+  name: string
+  location?: string
+  pvp_type?: string
+  pvpType?: string
+  battleye_status?: string
+  battleye?: string
+}
 
 // ---- Utils ----
 function cacheKey(f: Filters) {
@@ -61,12 +75,64 @@ function absolutize(url?: string | null): string {
   return url
 }
 
+function extractWorldList(payload: any): WorldMeta[] {
+  if (!payload) return []
+  if (Array.isArray(payload.regular_worlds)) return payload.regular_worlds
+  if (Array.isArray(payload.worlds)) return payload.worlds
+  return []
+}
+
+async function getWorldMeta(worldName?: string): Promise<WorldMeta | undefined> {
+  const key = (worldName ?? '').trim().toLowerCase()
+  if (!key) return undefined
+  const now = Date.now()
+  const hit = worldMetaCache.get(key)
+  if (hit && now - hit.at < WORLD_META_TTL) return hit.meta
+  try {
+    const payload = await getWorlds()
+    const list = extractWorldList(payload)
+    const meta = list.find((world) => world.name?.toLowerCase() === key)
+    worldMetaCache.set(key, { at: now, meta })
+    return meta
+  } catch (err) {
+    console.error('[marketService] failed to load world meta', err)
+    worldMetaCache.set(key, { at: now, meta: undefined })
+    return undefined
+  }
+}
+
+function normalizeBattleye(meta?: WorldMeta): 'green' | 'yellow' | undefined {
+  if (!meta) return undefined
+  const raw = (meta.battleye_status ?? meta.battleye ?? '').toString().toLowerCase()
+  if (!raw) return undefined
+  if (raw.includes('protected') || raw === 'on') return 'green'
+  if (raw.includes('unprotected') || raw === 'off') return 'yellow'
+  return undefined
+}
+
+function normalizeLocation(meta?: WorldMeta): string | undefined {
+  if (!meta?.location) return undefined
+  const raw = meta.location.toString().trim().toUpperCase()
+  if (!raw) return undefined
+  if (raw.startsWith('E')) return 'EU'
+  if (raw.startsWith('N')) return 'NA'
+  if (raw.startsWith('S') || raw.startsWith('B')) return 'BR'
+  if (raw.startsWith('O')) return 'OCE'
+  return raw
+}
+
+function normalizePvp(meta?: WorldMeta): string | undefined {
+  const raw = (meta?.pvp_type ?? meta?.pvpType ?? '').toString()
+  if (!raw) return undefined
+  return raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 // ---- Parser principal ----
 function parseAuctions(html: string): Auction[] {
-  const $ = cheerio.load(html)
+  const $: CheerioInstance = cheerio.load(html)
   const auctions: Auction[] = []
 
-  $('.Auction, .AuctionElement, .CharacterAuction').each((_, el) => {
+  $('.Auction, .AuctionElement, .CharacterAuction').each((_, el: cheerio.Element) => {
     const root = $(el)
 
     const name =
@@ -91,9 +157,11 @@ function parseAuctions(html: string): Auction[] {
     world = world.replace(/Auction\s*Start|Server\s*|World\s*:?\s*/gi, '').trim()
 
     const bidNode = root.find('.AuctionCurrentBid, .AuctionBid, .AuctionMinimalBid').first()
-    const bidText = bidNode.text() || root.text()
-    const currentBid = pickFirstNumber(bidText)
-    const hasBid = /Current\s*Bid|Current\s*offer/i.test(bidText)
+    const bidText = root.find('.ShortAuctionDataBidRow').text() || bidNode.text() || root.text()
+    const bidAmount = pickFirstNumber(bidText)
+    const hasBid = /Current\s*Bid|Winning\s*Bid|Current\s*offer/i.test(bidText)
+    const currentBid = hasBid ? bidAmount : bidAmount
+    const minimumBid = hasBid ? bidAmount : bidAmount
 
     const endNode = root.find('.AuctionEnd, .AuctionEndsIn, .AuctionEndDate').first()
     const endTime = (endNode.text() || '').trim()
@@ -109,13 +177,17 @@ function parseAuctions(html: string): Auction[] {
       root.find('img').first().attr('src') ||
       ''
     portrait = absolutize(portrait)
+    const idMatch = url.match(/auctionid=(\d+)/i)
+    const id = idMatch ? Number(idMatch[1]) : null
 
     auctions.push({
+      id,
       name,
       level,
       vocation,
       world,
       currentBid,
+      minimumBid,
       hasBid,
       endTime,
       url,
@@ -124,6 +196,122 @@ function parseAuctions(html: string): Auction[] {
   })
 
   return auctions
+}
+
+function getLabelValue($: CheerioInstance, label: string): string {
+  const selector = `.LabelV:contains("${label}")`
+  const el = $(selector).first()
+  if (!el.length) return ''
+  return el.next().text().trim()
+}
+
+function parseStoreItems($: CheerioInstance): StoreItem[] {
+  const items: StoreItem[] = []
+  $('#StoreItemSummary .TableContent tbody .CVIcon').each((_, element: cheerio.Element) => {
+    const title = $(element).attr('title') || ''
+    if (!title) return
+    let amount = 1
+    const match = title.match(/^([\d.,]+)x\s+/i)
+    let nameText = title
+    if (match) {
+      amount = pickFirstNumber(match[1])
+      nameText = title.substring(match[0].length)
+    }
+    const [rawName] = nameText.split('\n')
+    const name = rawName?.trim()
+    if (name) {
+      items.push({ name, amount: Number.isFinite(amount) ? amount : 1 })
+    }
+  })
+  return items
+}
+
+function parseItems($: CheerioInstance): number[] {
+  const list: number[] = []
+  $('.AuctionItemsViewBox .CVIcon').each((_, element: cheerio.Element) => {
+    const img = $('img', element).first()
+    const src = img.attr('src') || ''
+    const match = src.match(/objects\/(\d+)/i)
+    if (!match) return
+    let value = Number(match[1])
+    const tierImg = $('.ObjectTier img', element).attr('src') || ''
+    const tierMatch = tierImg.match(/tiers\/(\d+)/i)
+    if (tierMatch) {
+      value += Number(tierMatch[1]) / 10
+    }
+    list.push(value)
+  })
+  return list
+}
+
+function parseListEntries($: CheerioInstance, selector: string): string[] {
+  const skipClasses = new Set(['IndicateMoreEntries', 'LabelH'])
+  const entries: string[] = []
+  $(selector).each((_, element: cheerio.Element) => {
+    const parent = $(element).parent()
+    const parentClasses = (parent.attr('class') || '').split(/\s+/)
+    if (parentClasses.some((cls: string) => skipClasses.has(cls))) return
+    const text = $(element).text().trim()
+    if (text) entries.push(text)
+  })
+  return entries
+}
+
+function parseHirelings($: CheerioInstance): HirelingInfo | undefined {
+  const count = pickFirstNumber(getLabelValue($, 'Hirelings:'))
+  const jobs = pickFirstNumber(getLabelValue($, 'Hireling Jobs:'))
+  const outfits = pickFirstNumber(getLabelValue($, 'Hireling Outfits:'))
+  if (!count && !jobs && !outfits) return undefined
+  return { count, jobs, outfits }
+}
+
+function parseGems($: CheerioInstance): GemsInfo | undefined {
+  const counts: GemsInfo = { lesser: 0, regular: 0, greater: 0 }
+  let found = false
+  $('#RevealedGems .Gem').each((_, element: cheerio.Element) => {
+    found = true
+    const title = $(element).attr('title')?.toLowerCase() ?? ''
+    if (title.includes('greater')) counts.greater += 1
+    else if (title.includes('lesser')) counts.lesser += 1
+    else counts.regular += 1
+  })
+  return found ? counts : undefined
+}
+
+function parseGreaterGems($: CheerioInstance): string[] | undefined {
+  const list = new Set<string>()
+  $('#RevealedGems td:nth-child(2) .ModEffectRow .ModIconCharBazaarSupremeMod + span').each(
+    (_, element: cheerio.Element) => {
+      const iconName = $(element).children().first().text().trim()
+      const detail = $(element).children().eq(2).text().trim()
+      const label = detail ? `${iconName} (${detail})` : iconName
+      if (label) list.add(label)
+    }
+  )
+  if (!list.size) return undefined
+  return Array.from(list).sort()
+}
+
+function parseCharmInfo($: CheerioInstance): CharmInfo | undefined {
+  const available = pickFirstNumber(getLabelValue($, 'Available Charm Points:'))
+  const spent = pickFirstNumber(getLabelValue($, 'Spent Charm Points:'))
+  if (!available && !spent) return undefined
+  const total = available + spent
+  const expansion =
+    getLabelValue($, 'Charm Expansion:').toLowerCase() === 'yes'
+  return { total, expansion }
+}
+
+function parseMinimumBid($: CheerioInstance, pageText: string): number | undefined {
+  const rowText = $('.ShortAuctionDataBidRow').text()
+  if (/Minimum\s*Bid/i.test(rowText)) {
+    const fromRow = pickFirstNumber(rowText)
+    if (fromRow) return fromRow
+  }
+  const fallbackMatch = pageText.match(/Minimum\s+Bid\s*:?\s*([\d.,]+)/i)
+  if (fallbackMatch) return pickFirstNumber(fallbackMatch[0])
+  const bidValue = pickFirstNumber(rowText)
+  return bidValue || undefined
 }
 
 // ---- Busca nível via TibiaData ----
@@ -166,18 +354,22 @@ async function hydrateLevels(auctions: Auction[]): Promise<Auction[]> {
 }
 
 // ---- Pega detalhes da página individual ----
-async function fetchAuctionDetails(url: string): Promise<Partial<Auction>> {
+async function fetchAuctionDetails(auction: Auction): Promise<Partial<Auction>> {
+  const url = auction.url
   const key = `detail:${url}`
   const now = Date.now()
   const hit = detailCache.get(key)
   if (hit && now - hit.at < DETAIL_CACHE_TTL) return hit.data
 
   const { data: html } = await axios.get(url, { timeout: 15_000 })
-  const $ = cheerio.load(html)
+  const $: CheerioInstance = cheerio.load(html)
   const pageText = $('body').text()
 
-  const charmPoints = pickFirstNumber(pageText.match(/Charm\s*points.*?(\d+)/i)?.[0] ?? '')
-  const bossPoints = pickFirstNumber(pageText.match(/Boss\s*points.*?(\d+)/i)?.[0] ?? '')
+  const charmInfo = parseCharmInfo($)
+  const charmPoints = charmInfo?.total ?? pickFirstNumber(pageText.match(/Charm\s*points.*?(\d+)/i)?.[0] ?? '')
+  const bossPoints =
+    pickFirstNumber(getLabelValue($, 'Boss Points:')) ||
+    pickFirstNumber(pageText.match(/Boss\s*points.*?(\d+)/i)?.[0] ?? '')
 
   const skills: Skills = {}
   const grab = (label: string, key: keyof Skills) => {
@@ -195,7 +387,45 @@ async function fetchAuctionDetails(url: string): Promise<Partial<Auction>> {
   grab('Fishing', 'fishing')
   grab('Fist', 'fist')
 
-  const data: Partial<Auction> = { charmPoints, bossPoints, skills }
+  const storeItems = parseStoreItems($)
+  const items = parseItems($)
+  const imbuements = parseListEntries($, '#Imbuements .TableContentContainer tbody td')
+  const quests = Array.from(
+    new Set([
+      ...parseListEntries($, '#Achievements .TableContentContainer tbody td'),
+      ...parseListEntries($, '#CompletedQuestLines .TableContentContainer tbody td'),
+    ])
+  )
+  const hirelings = parseHirelings($)
+  const gems = parseGems($)
+  const greaterGems = parseGreaterGems($)
+  const preySlot = getLabelValue($, 'Permanent Prey Slots:').includes('1')
+  const huntingSlot = getLabelValue($, 'Permanent Hunting Task Slots:').includes('1')
+  const transferText = getLabelValue($, 'Regular World Transfer:')
+  const transfer = transferText.toLowerCase().includes('can be purchased')
+  const minimumBid = parseMinimumBid($, pageText) ?? auction.minimumBid
+  const meta = await getWorldMeta(auction.world)
+
+  const data: Partial<Auction> = {
+    charmPoints,
+    charmInfo,
+    bossPoints,
+    skills,
+    storeItems: storeItems.length ? storeItems : undefined,
+    items: items.length ? items : undefined,
+    imbuements: imbuements.length ? imbuements : undefined,
+    quests: quests.length ? quests : undefined,
+    hirelings,
+    gems,
+    greaterGems,
+    preySlot,
+    huntingSlot,
+    transfer,
+    minimumBid: Number.isFinite(minimumBid) ? minimumBid : auction.minimumBid,
+    battleye: normalizeBattleye(meta),
+    pvpType: normalizePvp(meta),
+    serverLocation: normalizeLocation(meta),
+  }
   detailCache.set(key, { at: now, data })
   return data
 }
@@ -209,7 +439,7 @@ async function hydrateDetails(auctions: Auction[]): Promise<Auction[]> {
       batch.map(async (a) => {
         if (!a.url) return
         try {
-          const det = await fetchAuctionDetails(a.url)
+          const det = await fetchAuctionDetails(a)
           Object.assign(a, det)
         } catch (err) {
           console.error(`[hydrateDetails] erro em ${a.name}:`, err)
@@ -242,11 +472,11 @@ export async function getAuctions(filters: Filters): Promise<GetAuctionsResult> 
 
     let totalPages = 1
     try {
-      const $ = cheerio.load(html)
+      const $: CheerioInstance = cheerio.load(html)
       const paginationText = $('.PageNavigation').text()
       const matches = paginationText.match(/\d+/g)
       if (matches && matches.length > 0) {
-        const numbers = matches.map((n) => parseInt(n))
+        const numbers = matches.map((n: string) => parseInt(n, 10))
         totalPages = Math.max(...numbers)
       }
     } catch {
