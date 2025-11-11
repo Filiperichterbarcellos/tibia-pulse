@@ -80,7 +80,7 @@ export default function Worlds() {
       </section>
 
       <section className="retro-panel overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-sm text-slate-800">
           <thead>
             <tr className="text-left text-slate-500 uppercase tracking-wider text-xs">
               <th className="pb-2">Nome</th>
@@ -93,9 +93,12 @@ export default function Worlds() {
           </thead>
           <tbody>
             {worlds.map((world) => (
-              <tr key={world.name} className="border-t border-slate-100">
-                <td className="py-2 font-semibold text-slate-900">{world.name}</td>
-                <td className="py-2">{world.pvp}</td>
+              <tr
+                key={world.name}
+                className="border-t border-slate-200 bg-white text-slate-900 even:bg-slate-50"
+              >
+                <td className="py-2 font-semibold">{world.name}</td>
+                <td className="py-2 capitalize">{world.pvp}</td>
                 <td className="py-2">{world.online.toLocaleString('pt-BR')}</td>
                 <td className="py-2">{world.location || '-'}</td>
                 <td className="py-2">{formatBattleye(world.battleye)}</td>

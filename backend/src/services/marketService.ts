@@ -4,6 +4,14 @@ import type { Auction, Skills, StoreItem, HirelingInfo, CharmInfo, GemsInfo } fr
 import { TibiaDataClient } from './tibiadata'
 import { getWorlds } from './worlds'
 
+const TIBIA_HTTP_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) TibiaPulse/1.0',
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9,pt-BR;q=0.8',
+  'Cache-Control': 'no-cache',
+}
+
 type CheerioInstance = ReturnType<typeof cheerio.load>
 
 type Filters = {
@@ -361,7 +369,7 @@ async function fetchAuctionDetails(auction: Auction): Promise<Partial<Auction>> 
   const hit = detailCache.get(key)
   if (hit && now - hit.at < DETAIL_CACHE_TTL) return hit.data
 
-  const { data: html } = await axios.get(url, { timeout: 15_000 })
+  const { data: html } = await axios.get(url, { timeout: 15_000, headers: TIBIA_HTTP_HEADERS })
   const $: CheerioInstance = cheerio.load(html)
   const pageText = $('body').text()
 
@@ -467,7 +475,7 @@ export async function getAuctions(filters: Filters): Promise<GetAuctionsResult> 
 
   try {
     const url = buildBazaarUrl(filters)
-    const { data: html } = await axios.get(url, { timeout: 15_000 })
+    const { data: html } = await axios.get(url, { timeout: 15_000, headers: TIBIA_HTTP_HEADERS })
     const auctions = parseAuctions(html)
 
     let totalPages = 1
