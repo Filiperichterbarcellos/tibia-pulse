@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import app from './app'
 
-const HOST = '127.0.0.1'
+const HOST = process.env.HOST || '0.0.0.0'
 const PORT = Number(process.env.PORT) || 4000
 
 console.log('[server] booting...')
