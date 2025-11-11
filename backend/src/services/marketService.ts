@@ -5,6 +5,8 @@ import { TibiaDataClient } from './tibiadata'
 import { getWorlds } from './worlds'
 
 const DEFAULT_IP = process.env.TIBIA_PROXY_IP ?? '189.14.128.23'
+const ALL_ORIGINS_BASE =
+  process.env.BAZAAR_PROXY_URL ?? 'https://api.allorigins.win/raw?url='
 const PROXY_PREFIX = process.env.TIBIA_PROXY_PREFIX ?? 'https://r.jina.ai/'
 const TIBIA_HTTP_HEADERS = {
   'User-Agent':
@@ -57,6 +59,20 @@ async function fetchBazaarHtml(url: string): Promise<string> {
     console.warn('[marketService] direct request blocked, fallback via proxy', {
       url,
       status: axios.isAxiosError(err) ? err.response?.status : undefined,
+    })
+  }
+
+  try {
+    const proxyUrl = `${ALL_ORIGINS_BASE}${encodeURIComponent(url)}`
+    const { data: proxied } = await axios.get(proxyUrl, { timeout: 20_000 })
+    const html = typeof proxied === 'string' ? proxied : proxied?.toString?.() ?? ''
+    if (html) {
+      return html
+    }
+  } catch (err) {
+    console.warn('[marketService] allorigins proxy failed', {
+      url,
+      reason: axios.isAxiosError(err) ? err.response?.status : String(err),
     })
   }
 
