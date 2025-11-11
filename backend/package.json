@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Backend do projeto Tibia Pulse",
   "main": "dist/server.js",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "dev": "dotenv -e .env.local -- tsx -r tsconfig-paths/register src/server.ts",
     "dev:prod": "dotenv -e .env.prod -- tsx -r tsconfig-paths/register src/server.ts",
