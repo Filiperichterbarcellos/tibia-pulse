@@ -9,7 +9,11 @@ const TIBIA_HTTP_HEADERS = {
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) TibiaPulse/1.0',
   Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'en-US,en;q=0.9,pt-BR;q=0.8',
+  'Accept-Encoding': 'gzip, deflate, br',
+  Referer: 'https://www.tibia.com/charactertrade/',
   'Cache-Control': 'no-cache',
+  Connection: 'keep-alive',
+  Cookie: 'TibiaComLang=en'
 }
 
 type CheerioInstance = ReturnType<typeof cheerio.load>
@@ -477,6 +481,10 @@ export async function getAuctions(filters: Filters): Promise<GetAuctionsResult> 
     const url = buildBazaarUrl(filters)
     const { data: html } = await axios.get(url, { timeout: 15_000, headers: TIBIA_HTTP_HEADERS })
     const auctions = parseAuctions(html)
+    if (!auctions.length) {
+      const snippet = html.toString().replace(/\s+/g, ' ').slice(0, 320)
+      console.warn('[marketService] bazaar returned empty list', { url, snippet })
+    }
 
     let totalPages = 1
     try {
