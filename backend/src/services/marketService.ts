@@ -4,6 +4,7 @@ import type { Auction, Skills, StoreItem, HirelingInfo, CharmInfo, GemsInfo } fr
 import { TibiaDataClient } from './tibiadata'
 import { getWorlds } from './worlds'
 
+const DEFAULT_IP = process.env.TIBIA_PROXY_IP ?? '189.14.128.23'
 const TIBIA_HTTP_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) TibiaPulse/1.0',
@@ -11,9 +12,24 @@ const TIBIA_HTTP_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9,pt-BR;q=0.8',
   'Accept-Encoding': 'gzip, deflate, br',
   Referer: 'https://www.tibia.com/charactertrade/',
+  Origin: 'https://www.tibia.com',
   'Cache-Control': 'no-cache',
   Connection: 'keep-alive',
-  Cookie: 'TibiaComLang=en'
+  Cookie: 'TibiaComLang=en',
+  'Upgrade-Insecure-Requests': '1',
+  'Sec-Fetch-Site': 'same-origin',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Dest': 'document',
+}
+
+function spoofHeaders() {
+  const ip = DEFAULT_IP.replace(/\d+$/, () =>
+    Math.max(2, Math.floor(Math.random() * 200)).toString(),
+  )
+  return {
+    ...TIBIA_HTTP_HEADERS,
+    'X-Forwarded-For': ip,
+  }
 }
 
 type CheerioInstance = ReturnType<typeof cheerio.load>
@@ -373,7 +389,7 @@ async function fetchAuctionDetails(auction: Auction): Promise<Partial<Auction>> 
   const hit = detailCache.get(key)
   if (hit && now - hit.at < DETAIL_CACHE_TTL) return hit.data
 
-  const { data: html } = await axios.get(url, { timeout: 15_000, headers: TIBIA_HTTP_HEADERS })
+  const { data: html } = await axios.get(url, { timeout: 15_000, headers: spoofHeaders() })
   const $: CheerioInstance = cheerio.load(html)
   const pageText = $('body').text()
 
@@ -479,7 +495,7 @@ export async function getAuctions(filters: Filters): Promise<GetAuctionsResult> 
 
   try {
     const url = buildBazaarUrl(filters)
-    const { data: html } = await axios.get(url, { timeout: 15_000, headers: TIBIA_HTTP_HEADERS })
+    const { data: html } = await axios.get(url, { timeout: 15_000, headers: spoofHeaders() })
     const auctions = parseAuctions(html)
     if (!auctions.length) {
       const snippet = html.toString().replace(/\s+/g, ' ').slice(0, 320)
