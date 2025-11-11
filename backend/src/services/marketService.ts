@@ -5,6 +5,7 @@ import { TibiaDataClient } from './tibiadata'
 import { getWorlds } from './worlds'
 
 const DEFAULT_IP = process.env.TIBIA_PROXY_IP ?? '189.14.128.23'
+const PROXY_PREFIX = process.env.TIBIA_PROXY_PREFIX ?? 'https://r.jina.ai/'
 const TIBIA_HTTP_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) TibiaPulse/1.0',
@@ -30,6 +31,38 @@ function spoofHeaders() {
     ...TIBIA_HTTP_HEADERS,
     'X-Forwarded-For': ip,
   }
+}
+
+function looksLikeCloudflare(html: string) {
+  const lower = html.toLowerCase()
+  return lower.includes('cloudflare') && lower.includes('cf-error-details')
+}
+
+function shouldFallback(err: unknown) {
+  if (!axios.isAxiosError(err)) return false
+  const status = err.response?.status ?? 0
+  return status === 403 || status === 429 || status === 503
+}
+
+async function fetchBazaarHtml(url: string): Promise<string> {
+  try {
+    const { data } = await axios.get(url, { timeout: 15_000, headers: spoofHeaders() })
+    const html = typeof data === 'string' ? data : data?.toString?.() ?? ''
+    if (!looksLikeCloudflare(html)) {
+      return html
+    }
+    console.warn('[marketService] cloudflare challenge detected, retrying via proxy', { url })
+  } catch (err) {
+    if (!shouldFallback(err)) throw err
+    console.warn('[marketService] direct request blocked, fallback via proxy', {
+      url,
+      status: axios.isAxiosError(err) ? err.response?.status : undefined,
+    })
+  }
+
+  const proxyUrl = `${PROXY_PREFIX}${url}`
+  const { data: proxied } = await axios.get(proxyUrl, { timeout: 20_000 })
+  return typeof proxied === 'string' ? proxied : proxied?.toString?.() ?? ''
 }
 
 type CheerioInstance = ReturnType<typeof cheerio.load>
@@ -389,7 +422,7 @@ async function fetchAuctionDetails(auction: Auction): Promise<Partial<Auction>> 
   const hit = detailCache.get(key)
   if (hit && now - hit.at < DETAIL_CACHE_TTL) return hit.data
 
-  const { data: html } = await axios.get(url, { timeout: 15_000, headers: spoofHeaders() })
+  const html = await fetchBazaarHtml(url)
   const $: CheerioInstance = cheerio.load(html)
   const pageText = $('body').text()
 
@@ -495,7 +528,7 @@ export async function getAuctions(filters: Filters): Promise<GetAuctionsResult> 
 
   try {
     const url = buildBazaarUrl(filters)
-    const { data: html } = await axios.get(url, { timeout: 15_000, headers: spoofHeaders() })
+    const html = await fetchBazaarHtml(url)
     const auctions = parseAuctions(html)
     if (!auctions.length) {
       const snippet = html.toString().replace(/\s+/g, ' ').slice(0, 320)
