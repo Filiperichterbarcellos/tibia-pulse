@@ -1,7 +1,9 @@
 // src/lib/apiClient.ts
 import axios from 'axios'
 
-const DEFAULT_BASE_URL = 'http://localhost:4000'
+const PROD_BASE_URL = 'https://tibia-pulse-a4emczdth7h6gbcr.centralus-01.azurewebsites.net'
+
+const DEFAULT_BASE_URL = import.meta.env.DEV ? 'http://localhost:4000' : PROD_BASE_URL
 
 const baseURL = (
   import.meta.env.VITE_API_BASE_URL ||
