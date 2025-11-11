@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth/useAuthStore'
-import logo from '@/assets/tibia-pulse-logo.png'
+import logo from '@/assets/fansite-logo.png'
 
 const NAV_LINKS = [
   { to: '/characters', label: 'Personagens' },
