@@ -531,7 +531,7 @@ export async function getAuctions(filters: Filters): Promise<GetAuctionsResult> 
     const html = await fetchBazaarHtml(url)
     const auctions = parseAuctions(html)
     if (!auctions.length) {
-      const snippet = html.toString().replace(/\s+/g, ' ').slice(0, 320)
+      const snippet = html.toString().replace(/\s+/g, ' ').slice(0, 5000)
       console.warn('[marketService] bazaar returned empty list', { url, snippet })
     }
 
