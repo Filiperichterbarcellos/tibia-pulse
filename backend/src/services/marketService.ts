@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio'
 import type { Auction, Skills, StoreItem, HirelingInfo, CharmInfo, GemsInfo } from '../types/market'
 import { TibiaDataClient } from './tibiadata'
 import { getWorlds } from './worlds'
+import { FALLBACK_AUCTIONS } from '../data/fallbackAuctions'
 
 const DEFAULT_IP = process.env.TIBIA_PROXY_IP ?? '189.14.128.23'
 const ALL_ORIGINS_BASE =
@@ -123,89 +124,6 @@ const WORLD_META_TTL = 5 * 60_000
 const worldMetaCache = new Map<string, { at: number; meta: WorldMeta | undefined }>()
 let markdownDetailSnippetLogged = false
 let fallbackAuctionsLogged = false
-
-const FALLBACK_AUCTIONS: Auction[] = [
-  {
-    id: 960001,
-    name: 'Kaamez',
-    level: 520,
-    vocation: 'Elite Knight',
-    world: 'Antica',
-    currentBid: 5200,
-    minimumBid: 5200,
-    hasBid: true,
-    endTime: 'Nov 12 2025, 02:00 CET',
-    url: 'https://www.tibia.com/charactertrade/?auctionid=960001',
-    portrait: 'https://static.tibia.com/images/charactertrade/outfits/129_0.gif',
-    battleye: 'green',
-    pvpType: 'open pvp',
-    serverLocation: 'EU',
-  },
-  {
-    id: 960002,
-    name: 'Amelie of Belobra',
-    level: 412,
-    vocation: 'Royal Paladin',
-    world: 'Belobra',
-    currentBid: 3600,
-    minimumBid: 3600,
-    hasBid: true,
-    endTime: 'Nov 12 2025, 01:00 CET',
-    url: 'https://www.tibia.com/charactertrade/?auctionid=960002',
-    portrait: 'https://static.tibia.com/images/charactertrade/outfits/130_0.gif',
-    battleye: 'green',
-    pvpType: 'optional pvp',
-    serverLocation: 'BR',
-  },
-  {
-    id: 960003,
-    name: 'Brutusk',
-    level: 300,
-    vocation: 'Master Sorcerer',
-    world: 'Luminera',
-    currentBid: 2100,
-    minimumBid: 2100,
-    hasBid: true,
-    endTime: 'Nov 11 2025, 22:00 CET',
-    url: 'https://www.tibia.com/charactertrade/?auctionid=960003',
-    portrait: 'https://static.tibia.com/images/charactertrade/outfits/138_0.gif',
-    battleye: 'green',
-    pvpType: 'optional pvp',
-    serverLocation: 'NA',
-  },
-  {
-    id: 960004,
-    name: 'Cobra Hunted',
-    level: 640,
-    vocation: 'Elder Druid',
-    world: 'Ombra',
-    currentBid: 9100,
-    minimumBid: 9100,
-    hasBid: true,
-    endTime: 'Nov 13 2025, 03:00 CET',
-    url: 'https://www.tibia.com/charactertrade/?auctionid=960004',
-    portrait: 'https://static.tibia.com/images/charactertrade/outfits/972_0.gif',
-    battleye: 'green',
-    pvpType: 'optional pvp',
-    serverLocation: 'BR',
-  },
-  {
-    id: 960005,
-    name: 'Movethe Flower',
-    level: 180,
-    vocation: 'Druid',
-    world: 'Pacera',
-    currentBid: 600,
-    minimumBid: 600,
-    hasBid: true,
-    endTime: 'Nov 11 2025, 20:00 CET',
-    url: 'https://www.tibia.com/charactertrade/?auctionid=960005',
-    portrait: 'https://static.tibia.com/images/charactertrade/outfits/133_2.gif',
-    battleye: 'green',
-    pvpType: 'optional pvp',
-    serverLocation: 'NA',
-  },
-]
 
 type WorldMeta = {
   name: string
@@ -450,6 +368,38 @@ function parseAuctions(html: string): Auction[] {
     return FALLBACK_AUCTIONS
   }
   return auctions
+}
+
+function filterFallbackAuctions(filters: Filters): Auction[] {
+  const { world, vocation, minLevel, maxLevel, order = 'end', sort = 'asc' } = filters
+  const normalizedWorld = world?.trim().toLowerCase()
+  const normalizedVoc = vocation?.trim().toLowerCase()
+
+  const filtered = FALLBACK_AUCTIONS.filter((auction) => {
+    if (normalizedWorld && auction.world.toLowerCase() !== normalizedWorld) return false
+    if (normalizedVoc && !auction.vocation.toLowerCase().includes(normalizedVoc)) return false
+    if (typeof minLevel === 'number' && auction.level < minLevel) return false
+    if (typeof maxLevel === 'number' && auction.level > maxLevel) return false
+    return true
+  })
+
+  const sorted = [...filtered].sort((a, b) => {
+    let aValue = 0
+    let bValue = 0
+    if (order === 'price') {
+      aValue = a.hasBid ? a.currentBid : a.minimumBid
+      bValue = b.hasBid ? b.currentBid : b.minimumBid
+    } else if (order === 'level') {
+      aValue = a.level
+      bValue = b.level
+    } else {
+      aValue = Date.parse(a.endTime)
+      bValue = Date.parse(b.endTime)
+    }
+    return sort === 'desc' ? bValue - aValue : aValue - bValue
+  })
+
+  return sorted
 }
 
 function getLabelValue($: CheerioInstance, label: string): string {
@@ -778,6 +728,7 @@ export async function getAuctions(filters: Filters): Promise<GetAuctionsResult> 
   } catch (err) {
     console.error('[marketService] upstream error:', err)
     if (hit) return { auctions: hit.data, totalPages: 1 }
-    return { auctions: [], totalPages: 1 }
+    const fallback = filterFallbackAuctions(filters)
+    return { auctions: fallback, totalPages: 1 }
   }
 }
