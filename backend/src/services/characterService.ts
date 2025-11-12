@@ -29,6 +29,14 @@ const DIRECT_HEADERS = {
   Referer: 'https://www.tibia.com/community/?subtopic=characters',
 }
 
+const TRACKER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Tibia Pulse)',
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  Referer: 'https://guildstats.eu/',
+}
+
 const RETRIABLE_CODES = new Set(['EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND'])
 
 function shouldRetry(err: unknown) {
@@ -223,7 +231,7 @@ async function fetchTrackerTab(name: string, tab?: number | string): Promise<str
     () =>
       axios.get<string>(url, {
         timeout: STATS_TIMEOUT,
-        headers: DIRECT_HEADERS,
+        headers: TRACKER_HEADERS,
       }),
     () =>
       axios.get<string>(`${ALL_ORIGINS}${encodeURIComponent(url)}`, {
@@ -429,7 +437,7 @@ async function fetchTrackerLevelHistory(
     () =>
       axios.get<string>(url, {
         timeout: STATS_TIMEOUT,
-        headers: DIRECT_HEADERS,
+        headers: TRACKER_HEADERS,
       }),
     () =>
       axios.get<string>(`${JINA_PROXY}${url}`, {
@@ -488,7 +496,7 @@ async function fetchTrackerDeaths(uid: string): Promise<PulseStatsDeathEntry[] |
     () =>
       axios.get<string>(url, {
         timeout: STATS_TIMEOUT,
-        headers: DIRECT_HEADERS,
+        headers: TRACKER_HEADERS,
       }),
     () =>
       axios.get<string>(`${JINA_PROXY}${url}`, {
