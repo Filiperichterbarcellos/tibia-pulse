@@ -40,6 +40,14 @@ function looksLikeCloudflare(html: string) {
   return lower.includes('cloudflare') && lower.includes('cf-error-details')
 }
 
+function looksLikeMarkdown(html: string) {
+  const trimmed = html.trimStart()
+  if (!trimmed) return false
+  if (trimmed.startsWith('Title:') && trimmed.includes('Markdown Content:')) return true
+  if (trimmed.startsWith('Markdown Content:')) return true
+  return false
+}
+
 function shouldFallback(err: unknown) {
   if (!axios.isAxiosError(err)) return false
   const status = err.response?.status ?? 0
@@ -103,6 +111,7 @@ const levelCache = new Map<string, { at: number; level: number }>()
 const CONCURRENCY = 4
 const WORLD_META_TTL = 5 * 60_000
 const worldMetaCache = new Map<string, { at: number; meta: WorldMeta | undefined }>()
+let markdownDetailSnippetLogged = false
 
 type WorldMeta = {
   name: string
@@ -145,11 +154,70 @@ function pickFirstNumber(text: string): number {
   return Number.parseInt(normalized, 10)
 }
 
+function extractNumber(source: string, pattern: RegExp): number {
+  const match = source.match(pattern)
+  if (!match) return 0
+  const target = match[1] ?? match[0]
+  return pickFirstNumber(target)
+}
+
+function extractString(source: string, pattern: RegExp): string {
+  const match = source.match(pattern)
+  if (!match) return ''
+  return (match[1] ?? match[0]).trim()
+}
+
 function absolutize(url?: string | null): string {
   if (!url) return ''
   if (url.startsWith('//')) return `https:${url}`
   if (url.startsWith('/')) return `https://www.tibia.com${url}`
   return url
+}
+
+function parseMarkdownAuctions(raw: string): Auction[] {
+  const [, afterMarker] = raw.split('Markdown Content:')
+  const content = (afterMarker ?? raw).replace(/\r/g, '')
+  const entryRegex =
+    /\[!\[Image\s+\d+\]\([^)]+\)\]\((https:\/\/www\.tibia\.com\/charactertrade\/\?subtopic=currentcharactertrades&page=details&auctionid=(\d+)[^)]*)\)([\s\S]*?)(?=\[!\[Image\s+\d+\]\(|$)/g
+  const auctions: Auction[] = []
+  let match: RegExpExecArray | null
+
+  while ((match = entryRegex.exec(content))) {
+    const url = match[1]
+    const id = Number(match[2])
+    const block = match[3]
+
+    const level = extractNumber(block, /Level:\s*([0-9]+)/i)
+    const vocation = extractString(block, /Vocation:\s*([^|]+?)(?:\||$)/i)
+    const world = extractString(block, /World:\s*\[([^\]]+)/i)
+    const endTime =
+      extractString(block, /Auction End:\s*([^*]+?)(?=\s+(?:Minimum|Current)\s+Bid)/i) ||
+      extractString(block, /Auction End:\s*([^\n]+)/i)
+    const currentBid = extractNumber(block, /Current Bid:\s*\*\*([\d.,]+)/i)
+    const minimumBid = extractNumber(block, /Minimum Bid:\s*\*\*([\d.,]+)/i) || currentBid
+    const hasBid = /Current Bid:/i.test(block)
+    const portrait =
+      extractString(
+        block,
+        /(https:\/\/static\.tibia\.com\/images\/charactertrade\/outfits\/[^\s)]+)/i,
+      ) || ''
+
+    auctions.push({
+      id,
+      name: `Auction #${id}`,
+      level,
+      vocation: vocation || '',
+      world: world || '',
+      currentBid: hasBid ? currentBid : 0,
+      minimumBid,
+      hasBid,
+      endTime: endTime || '',
+      url,
+      portrait: portrait,
+    })
+  }
+
+  return auctions
 }
 
 function extractWorldList(payload: any): WorldMeta[] {
@@ -206,72 +274,77 @@ function normalizePvp(meta?: WorldMeta): string | undefined {
 
 // ---- Parser principal ----
 function parseAuctions(html: string): Auction[] {
-  const $: CheerioInstance = cheerio.load(html)
-  const auctions: Auction[] = []
+  if (!html) return []
+  let auctions: Auction[] = []
 
-  $('.Auction, .AuctionElement, .CharacterAuction').each((_, el: cheerio.Element) => {
-    const root = $(el)
+  if (!looksLikeMarkdown(html)) {
+    const $: CheerioInstance = cheerio.load(html)
+    $('.Auction, .AuctionElement, .CharacterAuction').each((_, el: cheerio.Element) => {
+      const root = $(el)
 
-    const name =
-      root.find('a[href*="charactertrade"]').first().text().trim() ||
-      root.find('.AuctionCharacterName, .AuctionName, .AuctionHeader .Text').first().text().trim()
+      const name =
+        root.find('a[href*="charactertrade"]').first().text().trim() ||
+        root.find('.AuctionCharacterName, .AuctionName, .AuctionHeader .Text').first().text().trim()
 
-    const levelMatch = root.text().match(/Level\s*:?[\s]*([0-9]+)/i)
-    const level = levelMatch ? Number(levelMatch[1]) : 0
+      const levelMatch = root.text().match(/Level\s*:?[\s]*([0-9]+)/i)
+      const level = levelMatch ? Number(levelMatch[1]) : 0
 
-    let vocation =
-      root.find('.AuctionCharacterVocation, .AuctionVocation').first().text().trim() || ''
-    if (!vocation) {
-      const vm = root.text().match(/Vocation\s*:?[\s]*([A-Za-z ]+)/i)
-      vocation = (vm?.[1] ?? '').trim()
-    }
+      let vocation =
+        root.find('.AuctionCharacterVocation, .AuctionVocation').first().text().trim() || ''
+      if (!vocation) {
+        const vm = root.text().match(/Vocation\s*:?[\s]*([A-Za-z ]+)/i)
+        vocation = (vm?.[1] ?? '').trim()
+      }
 
-    let world = root.find('.AuctionCharacterWorld, .AuctionWorld').first().text().trim() || ''
-    if (!world) {
-      const wm = root.text().match(/World\s*:?[\s]*([A-Za-z\- ]+)/i)
-      world = (wm?.[1] ?? '').trim()
-    }
-    world = world.replace(/Auction\s*Start|Server\s*|World\s*:?\s*/gi, '').trim()
+      let world = root.find('.AuctionCharacterWorld, .AuctionWorld').first().text().trim() || ''
+      if (!world) {
+        const wm = root.text().match(/World\s*:?[\s]*([A-Za-z\- ]+)/i)
+        world = (wm?.[1] ?? '').trim()
+      }
+      world = world.replace(/Auction\s*Start|Server\s*|World\s*:?\s*/gi, '').trim()
 
-    const bidNode = root.find('.AuctionCurrentBid, .AuctionBid, .AuctionMinimalBid').first()
-    const bidText = root.find('.ShortAuctionDataBidRow').text() || bidNode.text() || root.text()
-    const bidAmount = pickFirstNumber(bidText)
-    const hasBid = /Current\s*Bid|Winning\s*Bid|Current\s*offer/i.test(bidText)
-    const currentBid = hasBid ? bidAmount : bidAmount
-    const minimumBid = hasBid ? bidAmount : bidAmount
+      const bidNode = root.find('.AuctionCurrentBid, .AuctionBid, .AuctionMinimalBid').first()
+      const bidText = root.find('.ShortAuctionDataBidRow').text() || bidNode.text() || root.text()
+      const bidAmount = pickFirstNumber(bidText)
+      const hasBid = /Current\s*Bid|Winning\s*Bid|Current\s*offer/i.test(bidText)
+      const currentBid = hasBid ? bidAmount : bidAmount
+      const minimumBid = hasBid ? bidAmount : bidAmount
 
-    const endNode = root.find('.AuctionEnd, .AuctionEndsIn, .AuctionEndDate').first()
-    const endTime = (endNode.text() || '').trim()
+      const endNode = root.find('.AuctionEnd, .AuctionEndsIn, .AuctionEndDate').first()
+      const endTime = (endNode.text() || '').trim()
 
-    let url =
-      root.find('a[href*="charactertrade"]').first().attr('href') ||
-      root.find('a[href*="characters"]').first().attr('href') ||
-      ''
-    url = absolutize(url) || 'https://www.tibia.com/charactertrade/'
+      let url =
+        root.find('a[href*="charactertrade"]').first().attr('href') ||
+        root.find('a[href*="characters"]').first().attr('href') ||
+        ''
+      url = absolutize(url) || 'https://www.tibia.com/charactertrade/'
 
-    let portrait =
-      root.find('img[src*="outfit"], img[src*="portrait"], img.OutfitImage').first().attr('src') ||
-      root.find('img').first().attr('src') ||
-      ''
-    portrait = absolutize(portrait)
-    const idMatch = url.match(/auctionid=(\d+)/i)
-    const id = idMatch ? Number(idMatch[1]) : null
+      let portrait =
+        root.find('img[src*="outfit"], img[src*="portrait"], img.OutfitImage').first().attr('src') ||
+        root.find('img').first().attr('src') ||
+        ''
+      portrait = absolutize(portrait)
+      const idMatch = url.match(/auctionid=(\d+)/i)
+      const id = idMatch ? Number(idMatch[1]) : null
 
-    auctions.push({
-      id,
-      name,
-      level,
-      vocation,
-      world,
-      currentBid,
-      minimumBid,
-      hasBid,
-      endTime,
-      url,
-      portrait,
+      auctions.push({
+        id,
+        name,
+        level,
+        vocation,
+        world,
+        currentBid,
+        minimumBid,
+        hasBid,
+        endTime,
+        url,
+        portrait,
+      })
     })
-  })
+  }
 
+  if (auctions.length) return auctions
+  if (looksLikeMarkdown(html)) return parseMarkdownAuctions(html)
   return auctions
 }
 
@@ -439,8 +512,23 @@ async function fetchAuctionDetails(auction: Auction): Promise<Partial<Auction>> 
   if (hit && now - hit.at < DETAIL_CACHE_TTL) return hit.data
 
   const html = await fetchBazaarHtml(url)
+  if (looksLikeMarkdown(html)) {
+    if (!markdownDetailSnippetLogged) {
+      console.warn('[marketService] markdown detail snippet', {
+        url,
+        snippet: html.slice(0, 2000),
+      })
+      markdownDetailSnippetLogged = true
+    }
+    return {}
+  }
+
   const $: CheerioInstance = cheerio.load(html)
   const pageText = $('body').text()
+
+  const detailName =
+    $('.AuctionCharacterName, .AuctionName, .AuctionHeader .Text').first().text().trim() ||
+    extractString(pageText, /Character\s+Name\s*:?\s*([A-Za-z' -]+)/i)
 
   const charmInfo = parseCharmInfo($)
   const charmPoints = charmInfo?.total ?? pickFirstNumber(pageText.match(/Charm\s*points.*?(\d+)/i)?.[0] ?? '')
@@ -484,6 +572,7 @@ async function fetchAuctionDetails(auction: Auction): Promise<Partial<Auction>> 
   const meta = await getWorldMeta(auction.world)
 
   const data: Partial<Auction> = {
+    name: detailName || auction.name,
     charmPoints,
     charmInfo,
     bossPoints,
