@@ -48,10 +48,20 @@ function looksLikeMarkdown(html: string) {
   return false
 }
 
+const RETRIABLE_ERROR_CODES = new Set([
+  'EAI_AGAIN',
+  'ENOTFOUND',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EPIPE',
+])
+
 function shouldFallback(err: unknown) {
   if (!axios.isAxiosError(err)) return false
   const status = err.response?.status ?? 0
-  return status === 403 || status === 429 || status === 503
+  if (status === 403 || status === 429 || status === 503) return true
+  if (!err.response && err.code && RETRIABLE_ERROR_CODES.has(err.code)) return true
+  return false
 }
 
 async function fetchBazaarHtml(url: string): Promise<string> {
@@ -510,8 +520,21 @@ async function fetchAuctionDetails(auction: Auction): Promise<Partial<Auction>> 
   const now = Date.now()
   const hit = detailCache.get(key)
   if (hit && now - hit.at < DETAIL_CACHE_TTL) return hit.data
-
-  const html = await fetchBazaarHtml(url)
+  let html = ''
+  try {
+    html = await fetchBazaarHtml(url)
+  } catch (err) {
+    const reason = axios.isAxiosError(err)
+      ? err.code ?? err.response?.status ?? err.message
+      : String(err)
+    console.warn('[marketService] detail fetch failed', { url, reason })
+    detailCache.set(key, { at: now, data: {} })
+    return {}
+  }
+  if (!html) {
+    detailCache.set(key, { at: now, data: {} })
+    return {}
+  }
   if (looksLikeMarkdown(html)) {
     if (!markdownDetailSnippetLogged) {
       console.warn('[marketService] markdown detail snippet', {
