@@ -35,7 +35,7 @@ router.get('/:name', async (req: Request, res: Response) => {
       vocation: tibiaProfile.vocation ?? c?.vocation ?? undefined,
       world: tibiaProfile.world ?? c?.world ?? undefined,
       residence: tibiaProfile.residence ?? c?.residence ?? c?.residence_city ?? undefined,
-      guild: emptyToUndefined(tibiaProfile.guild) ?? c?.guild ?? undefined,
+      guild: normalizeGuild(tibiaProfile.guild) ?? normalizeGuild(c?.guild) ?? undefined,
       sex: tibiaProfile.sex ?? c?.sex ?? undefined,
       created: normalizeDate(tibiaProfile.created) ?? normalizeDate(c?.created) ?? undefined,
       lastLogin:
@@ -84,6 +84,19 @@ function emptyToUndefined(value?: string | null) {
   if (!value) return undefined
   const trimmed = value.trim()
   return trimmed.length ? trimmed : undefined
+}
+
+function normalizeGuild(value?: unknown) {
+  if (!value) return undefined
+  if (typeof value === 'string') return emptyToUndefined(value)
+  if (typeof value === 'object' && value !== null) {
+    const name = emptyToUndefined((value as any).name)
+    const rank = emptyToUndefined((value as any).rank)
+    if (name && rank) return `${name} (${rank})`
+    if (name) return name
+    if (rank) return rank
+  }
+  return undefined
 }
 
 function normalizeDate(value?: string | null) {

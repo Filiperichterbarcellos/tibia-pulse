@@ -64,7 +64,11 @@ export default function CharacterDetails() {
         )}
       </section>
 
-      {loading && <div className="retro-panel">Carregando…</div>}
+      {loading && (
+        <div className="retro-panel text-slate-700 font-medium">
+          Carregando…
+        </div>
+      )}
       {error && !loading && <div className="retro-panel text-red-600">{error}</div>}
 
       {data && !loading && (
