@@ -145,7 +145,7 @@ export default function Bazaar() {
 
     return (
       <>
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filteredAuctions.map((auction) => {
             const key = buildFavoriteKey(auction)
             const favorite = favoritesMap.get(key)

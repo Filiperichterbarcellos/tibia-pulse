@@ -1,9 +1,11 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
 import type { Auction, Skills, StoreItem, HirelingInfo, CharmInfo, GemsInfo } from '../types/market'
+import type { BazaarFilters } from '../types/bazaar'
 import { TibiaDataClient } from './tibiadata'
 import { getWorlds } from './worlds'
 import { FALLBACK_AUCTIONS } from '../data/fallbackAuctions'
+import { fetchExevoPanAuctions } from './exevopan'
 
 const DEFAULT_IP = process.env.TIBIA_PROXY_IP ?? '189.14.128.23'
 const ALL_ORIGINS_BASE =
@@ -102,16 +104,6 @@ async function fetchBazaarHtml(url: string): Promise<string> {
 
 type CheerioInstance = ReturnType<typeof cheerio.load>
 
-type Filters = {
-  world?: string
-  vocation?: string
-  minLevel?: number
-  maxLevel?: number
-  page?: number
-  order?: 'price' | 'level' | 'end'
-  sort?: 'asc' | 'desc'
-}
-
 // ---- Caches ----
 const LIST_CACHE_TTL = 60_000
 const listCache = new Map<string, { at: number; data: Auction[] }>()
@@ -135,7 +127,7 @@ type WorldMeta = {
 }
 
 // ---- Utils ----
-function cacheKey(f: Filters) {
+function cacheKey(f: BazaarFilters) {
   return JSON.stringify({
     world: f.world || '',
     vocation: f.vocation || '',
@@ -147,7 +139,7 @@ function cacheKey(f: Filters) {
   })
 }
 
-function buildBazaarUrl(f: Filters) {
+function buildBazaarUrl(f: BazaarFilters) {
   const params = new URLSearchParams()
   if (f.world) params.set('world', f.world)
   if (f.vocation) params.set('profession', f.vocation)
@@ -370,7 +362,7 @@ function parseAuctions(html: string): Auction[] {
   return auctions
 }
 
-function filterFallbackAuctions(filters: Filters): Auction[] {
+function filterFallbackAuctions(filters: BazaarFilters): Auction[] {
   const { world, vocation, minLevel, maxLevel, order = 'end', sort = 'asc' } = filters
   const normalizedWorld = world?.trim().toLowerCase()
   const normalizedVoc = vocation?.trim().toLowerCase()
@@ -663,6 +655,37 @@ async function fetchAuctionDetails(auction: Auction): Promise<Partial<Auction>> 
   return data
 }
 
+function needsDetailHydration(auction: Auction): boolean {
+  if (!auction.url) return false
+  const hasSkills = auction.skills && Object.keys(auction.skills).length > 0
+  const hasItems = Array.isArray(auction.items) && auction.items.length > 0
+  const hasStoreItems = Array.isArray(auction.storeItems) && auction.storeItems.length > 0
+  const hasImbuements = Array.isArray(auction.imbuements) && auction.imbuements.length > 0
+  const hasQuests = Array.isArray(auction.quests) && auction.quests.length > 0
+  const hasGems = Boolean(auction.gems || (auction.greaterGems && auction.greaterGems.length))
+  const hasHirelings = Boolean(
+    auction.hirelings && (auction.hirelings.count || auction.hirelings.jobs || auction.hirelings.outfits),
+  )
+  const hasCharm = Boolean(auction.charmInfo || typeof auction.charmPoints === 'number')
+  const hasBossPoints = typeof auction.bossPoints === 'number'
+  const hasTags = Array.isArray(auction.tags) && auction.tags.length > 0
+  const hasTcInvested = typeof auction.tcInvested === 'number'
+
+  return !(
+    hasSkills ||
+    hasItems ||
+    hasStoreItems ||
+    hasImbuements ||
+    hasQuests ||
+    hasGems ||
+    hasHirelings ||
+    hasCharm ||
+    hasBossPoints ||
+    hasTags ||
+    hasTcInvested
+  )
+}
+
 async function hydrateDetails(auctions: Auction[]): Promise<Auction[]> {
   const out = [...auctions]
   let i = 0
@@ -684,51 +707,84 @@ async function hydrateDetails(auctions: Auction[]): Promise<Auction[]> {
   return out
 }
 
+async function hydrateDetailsIfNeeded(auctions: Auction[]): Promise<Auction[]> {
+  if (!auctions.some((auction) => needsDetailHydration(auction))) {
+    return auctions
+  }
+  return hydrateDetails(auctions)
+}
+
+async function enrichAuctions(auctions: Auction[]): Promise<Auction[]> {
+  const hydratedLvl = await hydrateLevels(auctions)
+  return hydrateDetailsIfNeeded(hydratedLvl)
+}
+
 // ---- API pública segura ----
 export type GetAuctionsResult = { auctions: Auction[]; totalPages?: number }
 
-export async function getAuctions(filters: Filters): Promise<GetAuctionsResult> {
+export async function getAuctions(filters: BazaarFilters): Promise<GetAuctionsResult> {
   const key = cacheKey(filters)
   const hit = listCache.get(key)
   const now = Date.now()
 
   if (hit && now - hit.at < LIST_CACHE_TTL) {
-    const hydratedLvl = await hydrateLevels(hit.data)
-    const hydrated = await hydrateDetails(hydratedLvl)
+    const hydrated = await enrichAuctions(hit.data)
     return { auctions: hydrated, totalPages: 1 }
   }
+
+  let tibiaBlocked = false
 
   try {
     const url = buildBazaarUrl(filters)
     const html = await fetchBazaarHtml(url)
     const auctions = parseAuctions(html)
-    if (!auctions.length) {
+    const placeholderResult = auctions === FALLBACK_AUCTIONS
+
+    if (!auctions.length && !placeholderResult) {
       const snippet = html.toString().replace(/\s+/g, ' ').slice(0, 5000)
       console.warn('[marketService] bazaar returned empty list', { url, snippet })
     }
 
-    let totalPages = 1
-    try {
-      const $: CheerioInstance = cheerio.load(html)
-      const paginationText = $('.PageNavigation').text()
-      const matches = paginationText.match(/\d+/g)
-      if (matches && matches.length > 0) {
-        const numbers = matches.map((n: string) => parseInt(n, 10))
-        totalPages = Math.max(...numbers)
+    if (!placeholderResult) {
+      let totalPages = 1
+      try {
+        const $: CheerioInstance = cheerio.load(html)
+        const paginationText = $('.PageNavigation').text()
+        const matches = paginationText.match(/\d+/g)
+        if (matches && matches.length > 0) {
+          const numbers = matches.map((n: string) => parseInt(n, 10))
+          totalPages = Math.max(...numbers)
+        }
+      } catch {
+        totalPages = 1
       }
-    } catch {
-      totalPages = 1
+
+      const hydrated = await enrichAuctions(auctions)
+      listCache.set(key, { at: now, data: hydrated })
+      return { auctions: hydrated, totalPages }
     }
 
-    const hydratedLvl = await hydrateLevels(auctions)
-    const hydrated = await hydrateDetails(hydratedLvl)
-
-    listCache.set(key, { at: now, data: hydrated })
-    return { auctions: hydrated, totalPages }
+    tibiaBlocked = true
+    console.warn('[marketService] tibia bazaar blocked, switching to exevo pan', { url })
   } catch (err) {
     console.error('[marketService] upstream error:', err)
-    if (hit) return { auctions: hit.data, totalPages: 1 }
-    const fallback = filterFallbackAuctions(filters)
-    return { auctions: fallback, totalPages: 1 }
   }
+
+  const exevoResult = await fetchExevoPanAuctions(filters)
+  if (exevoResult) {
+    const hydrated = await enrichAuctions(exevoResult.auctions)
+    listCache.set(key, { at: now, data: hydrated })
+    return { auctions: hydrated, totalPages: exevoResult.totalPages }
+  }
+
+  if (hit) {
+    console.warn('[marketService] falling back to stale cached bazaar data')
+    return { auctions: hit.data, totalPages: 1 }
+  }
+
+  const fallback = filterFallbackAuctions(filters)
+  if (!tibiaBlocked) {
+    console.warn('[marketService] using static fallback auctions list')
+  }
+  return { auctions: fallback, totalPages: 1 }
 }
