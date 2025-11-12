@@ -3,12 +3,60 @@ import * as cheerio from 'cheerio'
 import type { CharacterSummary, CharacterExperienceHistory } from '../types/character'
 
 const BASE_URL = 'https://www.tibia.com/community/?subtopic=characters&name='
+const ALL_ORIGINS = 'https://api.allorigins.win/raw?url='
+const JINA_PROXY = 'https://r.jina.ai/'
+
+const DIRECT_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Tibia Pulse)',
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  Referer: 'https://www.tibia.com/community/?subtopic=characters',
+}
+
+const RETRIABLE_CODES = new Set(['EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND'])
+
+function shouldRetry(err: unknown) {
+  if (!axios.isAxiosError(err)) return false
+  const status = err.response?.status ?? 0
+  if (status === 403 || status === 429 || status === 503) return true
+  if (!err.response && err.code && RETRIABLE_CODES.has(err.code)) return true
+  return false
+}
+
+async function fetchTibiaPage(url: string): Promise<string> {
+  try {
+    const { data } = await axios.get<string>(url, { headers: DIRECT_HEADERS, timeout: 8000 })
+    if (typeof data === 'string' && !data.includes('cf-error-details')) return data
+    console.warn('[characters] possible cloudflare challenge, retry via proxy', { url })
+  } catch (err) {
+    if (!shouldRetry(err)) throw err
+    console.warn('[characters] direct fetch blocked, trying proxies', {
+      url,
+      reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
+    })
+  }
+
+  try {
+    const { data } = await axios.get<string>(`${ALL_ORIGINS}${encodeURIComponent(url)}`, {
+      timeout: 10000,
+    })
+    if (typeof data === 'string' && data.trim()) return data
+  } catch (err) {
+    console.warn('[characters] allorigins proxy failed', {
+      url,
+      reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
+    })
+  }
+
+  const proxiedUrl = `${JINA_PROXY}${url}`
+  const { data } = await axios.get<string>(proxiedUrl, { timeout: 15000 })
+  return typeof data === 'string' ? data : String(data ?? '')
+}
 
 export async function fetchCharacterProfile(name: string): Promise<CharacterSummary> {
   const url = `${BASE_URL}${encodeURIComponent(name)}`
-  const { data } = await axios.get<string>(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (Tibia Pulse)' },
-  })
+  const data = await fetchTibiaPage(url)
   const $ = cheerio.load(data)
 
   const nameLabel = $('td:contains("Name:")').next().text().trim()
