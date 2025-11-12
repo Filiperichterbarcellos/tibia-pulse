@@ -11,21 +11,21 @@ router.get('/:name', async (req: Request, res: Response) => {
     if (!name) return res.status(400).type('application/json').json({ error: 'missing name' })
 
     const [tibiaData, tibiaProfile, guildStats] = await Promise.all([
-      TibiaDataClient.character(name),
+      TibiaDataClient.character(name).catch((err) => {
+        console.warn('[tibiadata] fallback triggered', err?.message ?? err)
+        return null
+      }),
       fetchCharacterProfile(name),
       fetchGuildStats(name).catch(() => null),
     ])
 
-    if (!tibiaData) {
-      return res.status(404).type('application/json').json({ error: 'not found' })
-    }
-
     // tenta achar a raiz independente do formato
-    const c =
-      (tibiaData as any).character ??
-      (tibiaData as any).characters?.character ??
-      (tibiaData as any).data?.character ??
-      tibiaData
+    const c = tibiaData
+      ? (tibiaData as any).character ??
+        (tibiaData as any).characters?.character ??
+        (tibiaData as any).data?.character ??
+        tibiaData
+      : null
 
     const level = tibiaProfile.level || Number(c?.level) || 0
 
@@ -69,6 +69,9 @@ router.get('/:name', async (req: Request, res: Response) => {
 
     return res.type('application/json').json(base)
   } catch (e) {
+    if ((e as any)?.code === 404 || (e as any)?.message === 'not-found') {
+      return res.status(404).type('application/json').json({ error: 'not found' })
+    }
     console.error('[characters] upstream error', e)
     return res.status(502).type('application/json').json({ error: 'upstream error' })
   }

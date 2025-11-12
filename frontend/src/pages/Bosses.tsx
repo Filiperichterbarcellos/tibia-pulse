@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchBoostedBoss } from '@/features/bosses/api'
 import BossCard from '@/features/bosses/BossCard'
 import BossModal from '@/features/bosses/BossModal'
 import { BOSSES, type BossEntry } from '@/features/bosses/bossesData'
@@ -11,7 +10,6 @@ import { getBossSprite } from '@/features/bosses/sprites'
 export default function Bosses() {
   const [worlds, setWorlds] = useState<string[]>([])
   const [selectedWorld, setSelectedWorld] = useState('Antica')
-  const [boosted, setBoosted] = useState<{ name: string; imageUrl?: string | null } | null>(null)
   const [query, setQuery] = useState('')
   const [modalBoss, setModalBoss] = useState<BossEntry | null>(null)
   const [favoriteMessage, setFavoriteMessage] = useState<string | null>(null)
@@ -37,10 +35,6 @@ export default function Bosses() {
         }
       })
       .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    fetchBoostedBoss().then((data) => setBoosted(data))
   }, [])
 
   useEffect(() => {
@@ -97,25 +91,8 @@ export default function Bosses() {
           <p className="retro-badge">Boss tracker</p>
           <h1>Bosses monitorados por mundo</h1>
           <p>
-            Filtros simples com dados do TibiaData. Veja o boost do dia e as estatísticas de kill
-            para cada servidor, com links rápidos para o mapa do TibiaMaps.
+            Filtros simples com dados do TibiaData. Veja estatísticas de kill para cada servidor, com links rápidos para o mapa do TibiaMaps.
           </p>
-        </div>
-        <div className="retro-hero__box">
-          <p>Boosted hoje</p>
-          {boosted ? (
-            <div className="flex items-center gap-3">
-              {boosted.imageUrl && (
-                <img src={boosted.imageUrl} alt={boosted.name} width={48} height={48} />
-              )}
-              <div>
-                <strong>{boosted.name}</strong>
-                <p className="text-slate-700 text-sm">Aproveite o bônus extra</p>
-              </div>
-            </div>
-          ) : (
-            <span className="retro-hero__loading">Aguardando dados…</span>
-          )}
         </div>
       </section>
 
