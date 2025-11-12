@@ -551,6 +551,12 @@
   align-items: center;
 }
 
+.boss-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .boss-card__title {
   display: flex;
   align-items: center;
@@ -573,7 +579,7 @@
   color: #1b1f3b;
 }
 
-.boss-card button {
+.boss-card__details {
   border: none;
   background: rgba(99, 102, 241, 0.15);
   color: #4338ca;
@@ -581,6 +587,32 @@
   font-size: 0.75rem;
   padding: 0.3rem 0.75rem;
   font-weight: 600;
+}
+
+.boss-card__fav {
+  border: none;
+  background: rgba(15, 23, 42, 0.07);
+  color: #f97316;
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.boss-card__fav.is-active {
+  background: rgba(249, 115, 22, 0.18);
+}
+
+.boss-card__fav:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.boss-card__fav:not(:disabled):hover {
+  transform: translateY(-1px);
 }
 
 .boss-card dl {

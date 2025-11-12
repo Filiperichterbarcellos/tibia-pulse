@@ -1,12 +1,23 @@
+import clsx from 'clsx'
+import { Heart } from 'lucide-react'
 import { getBossSprite } from './sprites'
 import type { BossEntry } from './bossesData'
 
 type Props = {
   entry: BossEntry
   onSelect: (entry: BossEntry) => void
+  onToggleFavorite?: (entry: BossEntry) => void
+  isFavorite?: boolean
+  favoriteDisabled?: boolean
 }
 
-export default function BossCard({ entry, onSelect }: Props) {
+export default function BossCard({
+  entry,
+  onSelect,
+  onToggleFavorite,
+  isFavorite = false,
+  favoriteDisabled,
+}: Props) {
   const sprite = getBossSprite(entry.name)
   const respawnText = formatRespawn(entry)
   const lootPreview = entry.loot.length ? entry.loot.slice(0, 2).join(', ') : 'Sem loot destacado'
@@ -27,9 +38,23 @@ export default function BossCard({ entry, onSelect }: Props) {
           )}
           <h3>{entry.name}</h3>
         </div>
-        <button type="button" onClick={() => onSelect(entry)}>
-          Detalhes
-        </button>
+        <div className="boss-card__actions">
+          {onToggleFavorite && (
+            <button
+              type="button"
+              className={clsx('boss-card__fav', isFavorite && 'is-active')}
+              aria-pressed={isFavorite}
+              onClick={() => onToggleFavorite(entry)}
+              disabled={favoriteDisabled}
+              title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+            >
+              <Heart className="size-4" fill={isFavorite ? '#f97316' : 'none'} />
+            </button>
+          )}
+          <button type="button" className="boss-card__details" onClick={() => onSelect(entry)}>
+            Detalhes
+          </button>
+        </div>
       </header>
 
       <dl>

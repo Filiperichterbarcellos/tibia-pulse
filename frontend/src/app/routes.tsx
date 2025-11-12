@@ -9,8 +9,6 @@ import Worlds from '@/pages/Worlds'
 import Calculator from '@/pages/Calculator'
 import Blog from '@/pages/Blog'
 import Post from '@/pages/Post'
-import Favorites from '@/pages/Favorites'
-import ProtectedRoute from '@/components/ProtectedRoute'
 
 export const router = createBrowserRouter([
   {
@@ -27,13 +25,6 @@ export const router = createBrowserRouter([
       { path: 'calculator', element: <Calculator /> },
       { path: 'blog', element: <Blog /> },
       { path: 'blog/:slug', element: <Post /> },
-
-      {
-        element: <ProtectedRoute />,
-        children: [
-          { path: 'favorites', element: <Favorites /> },
-        ],
-      },
     ],
   },
 ])

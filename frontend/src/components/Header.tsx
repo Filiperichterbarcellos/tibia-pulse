@@ -9,7 +9,6 @@ const NAV_LINKS = [
   { to: '/calculator', label: 'Calculadoras' },
   { to: '/worlds', label: 'Worlds' },
   { to: '/blog', label: 'Blog' },
-  { to: '/favorites', label: 'Favoritos' },
 ]
 
 export default function Header() {

@@ -7,20 +7,22 @@ import {
   type Favorite,
 } from './api'
 
-export type FavoriteCharacterSnapshot = {
-  name?: string | null
-  vocation?: string | null
-  world?: string | null
-  level?: number | null
-  outfitUrl?: string | null
-  lastUpdate?: string | null
+export type FavoriteRecord<TSnapshot = any> = Favorite<TSnapshot>
+
+type UseFavoritesResult<TSnapshot> = {
+  favorites: Array<FavoriteRecord<TSnapshot>>
+  loading: boolean
+  error: string | null
+  updatingKey: string | null
+  isFavorite: (key: string) => FavoriteRecord<TSnapshot> | undefined
+  refresh: () => Promise<void>
+  addFavorite: (payload: { key: string; notes?: string; snapshot?: TSnapshot }) => Promise<FavoriteRecord<TSnapshot>>
+  removeFavorite: (favorite: FavoriteRecord<TSnapshot>) => Promise<void>
 }
 
-export type FavoriteCharacter = Favorite<FavoriteCharacterSnapshot>
-
-export function useFavoriteCharacters(type: Favorite['type'] = 'AUCTION') {
+export function useFavorites<TSnapshot = any>(type: Favorite['type']): UseFavoritesResult<TSnapshot> {
   const token = useAuthStore((s) => s.token)
-  const [favorites, setFavorites] = useState<FavoriteCharacter[]>([])
+  const [favorites, setFavorites] = useState<Array<FavoriteRecord<TSnapshot>>>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [updatingKey, setUpdatingKey] = useState<string | null>(null)
@@ -30,7 +32,7 @@ export function useFavoriteCharacters(type: Favorite['type'] = 'AUCTION') {
     setLoading(true)
     try {
       const { favorites: payload } = await listFavorites(type)
-      setFavorites(payload as FavoriteCharacter[])
+      setFavorites(payload as Array<FavoriteRecord<TSnapshot>>)
       setError(null)
     } catch (err: any) {
       const message = err?.response?.data?.error ?? 'Não foi possível carregar favoritos.'
@@ -50,12 +52,10 @@ export function useFavoriteCharacters(type: Favorite['type'] = 'AUCTION') {
     fetchFavorites()
   }, [token, fetchFavorites])
 
-  const favoriteMap = useMemo(() => {
-    return new Map(favorites.map((fav) => [fav.key, fav]))
-  }, [favorites])
+  const favoriteMap = useMemo(() => new Map(favorites.map((fav) => [fav.key, fav])), [favorites])
 
   const addFavorite = useCallback(
-    async (payload: { key: string; notes?: string; snapshot?: FavoriteCharacterSnapshot }) => {
+    async (payload: { key: string; notes?: string; snapshot?: TSnapshot }) => {
       if (!token) throw new Error('not-authenticated')
       setUpdatingKey(payload.key)
       try {
@@ -66,11 +66,11 @@ export function useFavoriteCharacters(type: Favorite['type'] = 'AUCTION') {
           snapshot: payload.snapshot,
         })
         setFavorites((prev) => [
-          favorite as FavoriteCharacter,
+          favorite as FavoriteRecord<TSnapshot>,
           ...prev.filter((item) => item.id !== favorite.id),
         ])
         setError(null)
-        return favorite as FavoriteCharacter
+        return favorite as FavoriteRecord<TSnapshot>
       } catch (err: any) {
         const message = err?.response?.data?.error ?? 'Não foi possível salvar o favorito.'
         setError(message)
@@ -83,12 +83,12 @@ export function useFavoriteCharacters(type: Favorite['type'] = 'AUCTION') {
   )
 
   const removeFavorite = useCallback(
-    async (fav: FavoriteCharacter) => {
+    async (favorite: FavoriteRecord<TSnapshot>) => {
       if (!token) throw new Error('not-authenticated')
-      setUpdatingKey(fav.key)
+      setUpdatingKey(favorite.key)
       try {
-        await deleteFavorite(fav.id)
-        setFavorites((prev) => prev.filter((item) => item.id !== fav.id))
+        await deleteFavorite(favorite.id)
+        setFavorites((prev) => prev.filter((item) => item.id !== favorite.id))
         setError(null)
       } catch (err: any) {
         const message = err?.response?.data?.error ?? 'Não foi possível remover o favorito.'
@@ -106,8 +106,8 @@ export function useFavoriteCharacters(type: Favorite['type'] = 'AUCTION') {
     loading,
     error,
     updatingKey,
-    refresh: fetchFavorites,
     isFavorite: (key: string) => favoriteMap.get(key),
+    refresh: fetchFavorites,
     addFavorite,
     removeFavorite,
   }
