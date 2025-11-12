@@ -116,13 +116,26 @@ type CharacterApiResponse =
   | { characters?: { data: CharacterSummary } }
   | CharacterSummary
 
+function extractCharacterPayload(payload: CharacterApiResponse): CharacterSummary {
+  if (payload && typeof payload === 'object') {
+    if ('character' in payload && payload.character) {
+      return payload.character
+    }
+    if ('characters' in payload) {
+      const characters = payload.characters as { data?: CharacterSummary }
+      if (characters?.data) return characters.data
+    }
+  }
+  return payload as CharacterSummary
+}
+
 export async function getCharacter(name: string): Promise<{ character: CharacterSummary }> {
   const data = await requestWithRetry<CharacterApiResponse>(
     `/api/characters/${encodeURIComponent(name)}`,
   )
 
   // Backend pode retornar em formatos levemente diferentes; normalizamos aqui
-  const c = (data?.character ?? data?.characters?.data ?? data) as any
+  const c = extractCharacterPayload(data)
 
   const deaths: DeathEntry[] =
     Array.isArray(c?.deaths) ? c.deaths
