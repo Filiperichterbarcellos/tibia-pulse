@@ -41,7 +41,10 @@ router.get('/', async (req, res, next) => {
       count: filtered.length,
       worlds: filtered,
     })
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.status === 503) {
+      return res.status(503).json({ error: 'upstream unavailable' })
+    }
     next(e)
   }
 })
@@ -52,7 +55,10 @@ router.get('/:name', async (req, res, next) => {
     const world = await getWorldDetail(req.params.name)
     if (!world) return res.status(404).json({ error: 'not found' })
     res.json(world)
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.status === 503) {
+      return res.status(503).json({ error: 'upstream unavailable' })
+    }
     next(e)
   }
 })
