@@ -111,8 +111,15 @@ async function requestWithRetry<T>(url: string, attempt = 0): Promise<T> {
   }
 }
 
+type CharacterApiResponse =
+  | { character: CharacterSummary }
+  | { characters?: { data: CharacterSummary } }
+  | CharacterSummary
+
 export async function getCharacter(name: string): Promise<{ character: CharacterSummary }> {
-  const data = await requestWithRetry(`/api/characters/${encodeURIComponent(name)}`)
+  const data = await requestWithRetry<CharacterApiResponse>(
+    `/api/characters/${encodeURIComponent(name)}`,
+  )
 
   // Backend pode retornar em formatos levemente diferentes; normalizamos aqui
   const c = (data?.character ?? data?.characters?.data ?? data) as any
