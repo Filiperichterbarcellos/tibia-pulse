@@ -8,7 +8,7 @@ const router = Router()
 router.get('/', async (req, res, next) => {
   try {
     const data = await getWorlds()
-    if (!data) return res.status(404).json({ error: 'not found' })
+    if (!data) return res.status(503).json({ error: 'upstream unavailable' })
 
     const list = (data.regular_worlds ?? data.worlds ?? []) as any[]
     const type = normalizeWorldType(req.query.type as string)
@@ -42,9 +42,7 @@ router.get('/', async (req, res, next) => {
       worlds: filtered,
     })
   } catch (e: any) {
-    if (e?.status === 503) {
-      return res.status(503).json({ error: 'upstream unavailable' })
-    }
+    if (e?.status === 503) return res.status(503).json({ error: 'upstream unavailable' })
     next(e)
   }
 })
