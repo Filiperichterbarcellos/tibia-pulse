@@ -10,7 +10,6 @@ import favoriteRoutes from './routes/favorites.routes'
 
 // ⬇️ use os nomes dos arquivos que você já tem
 import bossesRoutes from './routes/bosses'
-import marketRoutes from './routes/market'
 import calculatorRoutes from './routes/calculator'
 import worldsRoutes from './routes/worlds'
 
@@ -32,7 +31,6 @@ app.use('/api/favorites', favoriteRoutes)
 // ⬇️ monta as rotas novas
 app.use('/api/worlds', worldsRoutes)
 app.use('/api/bosses', bossesRoutes)
-app.use('/api/market', marketRoutes)
 app.use('/api/calculator', calculatorRoutes)
 
 app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }))

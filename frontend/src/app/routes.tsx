@@ -4,7 +4,6 @@ import Login from '@/pages/Login'
 import Register from '@/pages/Register'
 import CharacterSearch from '@/pages/CharacterSearch'
 import CharacterDetails from '@/pages/CharacterDetails'
-import Bazaar from '@/pages/Bazaar'
 import Bosses from '@/pages/Bosses'
 import Worlds from '@/pages/Worlds'
 import Calculator from '@/pages/Calculator'
@@ -18,12 +17,11 @@ export const router = createBrowserRouter([
     path: '/',
     element: <App />,
     children: [
-      { index: true, element: <Bazaar /> },
+      { index: true, element: <CharacterSearch /> },
       { path: 'login', element: <Login /> },
       { path: 'register', element: <Register /> },
       { path: 'characters', element: <CharacterSearch /> },
       { path: 'characters/:name', element: <CharacterDetails /> },
-      { path: 'bazaar', element: <Bazaar /> },
       { path: 'bosses', element: <Bosses /> },
       { path: 'worlds', element: <Worlds /> },
       { path: 'calculator', element: <Calculator /> },

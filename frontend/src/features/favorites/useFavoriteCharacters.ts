@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '@/features/auth/useAuthStore'
-import type { Auction } from '@/features/bazaar/api'
 import {
   createFavorite,
   deleteFavorite,
@@ -8,11 +7,20 @@ import {
   type Favorite,
 } from './api'
 
-export type FavoriteAuction = Favorite<Auction>
+export type FavoriteCharacterSnapshot = {
+  name?: string | null
+  vocation?: string | null
+  world?: string | null
+  level?: number | null
+  outfitUrl?: string | null
+  lastUpdate?: string | null
+}
 
-export function useFavoriteAuctions(type: Favorite['type'] = 'AUCTION') {
+export type FavoriteCharacter = Favorite<FavoriteCharacterSnapshot>
+
+export function useFavoriteCharacters(type: Favorite['type'] = 'AUCTION') {
   const token = useAuthStore((s) => s.token)
-  const [favorites, setFavorites] = useState<FavoriteAuction[]>([])
+  const [favorites, setFavorites] = useState<FavoriteCharacter[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [updatingKey, setUpdatingKey] = useState<string | null>(null)
@@ -22,7 +30,7 @@ export function useFavoriteAuctions(type: Favorite['type'] = 'AUCTION') {
     setLoading(true)
     try {
       const { favorites: payload } = await listFavorites(type)
-      setFavorites(payload as FavoriteAuction[])
+      setFavorites(payload as FavoriteCharacter[])
       setError(null)
     } catch (err: any) {
       const message = err?.response?.data?.error ?? 'Não foi possível carregar favoritos.'
@@ -47,7 +55,7 @@ export function useFavoriteAuctions(type: Favorite['type'] = 'AUCTION') {
   }, [favorites])
 
   const addFavorite = useCallback(
-    async (payload: { key: string; notes?: string; snapshot?: Auction }) => {
+    async (payload: { key: string; notes?: string; snapshot?: FavoriteCharacterSnapshot }) => {
       if (!token) throw new Error('not-authenticated')
       setUpdatingKey(payload.key)
       try {
@@ -58,11 +66,11 @@ export function useFavoriteAuctions(type: Favorite['type'] = 'AUCTION') {
           snapshot: payload.snapshot,
         })
         setFavorites((prev) => [
-          favorite as FavoriteAuction,
+          favorite as FavoriteCharacter,
           ...prev.filter((item) => item.id !== favorite.id),
         ])
         setError(null)
-        return favorite as FavoriteAuction
+        return favorite as FavoriteCharacter
       } catch (err: any) {
         const message = err?.response?.data?.error ?? 'Não foi possível salvar o favorito.'
         setError(message)
@@ -75,7 +83,7 @@ export function useFavoriteAuctions(type: Favorite['type'] = 'AUCTION') {
   )
 
   const removeFavorite = useCallback(
-    async (fav: FavoriteAuction) => {
+    async (fav: FavoriteCharacter) => {
       if (!token) throw new Error('not-authenticated')
       setUpdatingKey(fav.key)
       try {

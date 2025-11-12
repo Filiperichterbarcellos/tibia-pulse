@@ -7,7 +7,7 @@ export const swaggerSpec: OpenAPIV3.Document = {
     title: 'Tibia Pulse API',
     version: '1.0.0',
     description:
-      'API do Tibia Pulse — autenticação, favoritos e módulos (worlds, bosses, market, calculator).',
+      'API do Tibia Pulse — autenticação, favoritos e módulos (worlds, bosses, calculator, personagens).',
   },
   servers: [{ url: 'http://localhost:3000', description: 'Local' }],
   tags: [
@@ -19,7 +19,6 @@ export const swaggerSpec: OpenAPIV3.Document = {
       description: 'Busca e detalhes de personagens (TibiaData + scraping tibia.com / GuildStats)',
     },
     { name: 'Bosses', description: 'Bosses boostáveis e estatísticas de kills' },
-    { name: 'Market', description: 'Bazar/Leilões de personagens' },
     { name: 'Calculator', description: 'Calculadoras diversas (Tibia Coin, etc.)' },
   ],
   components: {
@@ -154,41 +153,6 @@ export const swaggerSpec: OpenAPIV3.Document = {
           },
         },
         required: ['world', 'entries'],
-      },
-
-      // ==== Market ====
-      Auction: {
-        type: 'object',
-        properties: {
-          id: { type: 'integer', nullable: true },
-          name: { type: 'string' },
-          level: { type: 'integer' },
-          vocation: { type: 'string' },
-          world: { type: 'string' },
-          currentBid: { type: 'integer' },
-          hasBid: { type: 'boolean' },
-          endDate: { type: 'string', format: 'date-time', nullable: true },
-          url: { type: 'string' },
-          outfitUrl: { type: 'string', nullable: true },
-          pvpType: { type: 'string', nullable: true },
-          charmPoints: { type: 'integer', nullable: true },
-          bossPoints: { type: 'integer', nullable: true },
-          skills: {
-            type: 'object',
-            additionalProperties: { type: 'integer' },
-            nullable: true,
-          },
-        },
-        required: ['name', 'level', 'vocation', 'world', 'currentBid', 'url', 'hasBid'],
-      },
-      AuctionListResponse: {
-        type: 'object',
-        properties: {
-          page: { type: 'integer' },
-          totalPages: { type: 'integer' },
-          auctions: { type: 'array', items: { $ref: '#/components/schemas/Auction' } },
-        },
-        required: ['page', 'totalPages', 'auctions'],
       },
 
       // ==== Calculator ====
@@ -451,36 +415,6 @@ export const swaggerSpec: OpenAPIV3.Document = {
     },
 
     // ===== Market =====
-    '/api/market': {
-      get: {
-        tags: ['Market'],
-        summary: 'Ping da rota de Market',
-        responses: {
-          '200': { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/OkPing' } } } },
-        },
-      },
-    },
-    '/api/market/auctions': {
-      get: {
-        tags: ['Market'],
-        summary: 'Lista leilões de personagens (Character Bazaar)',
-        parameters: [
-          { in: 'query', name: 'world', schema: { type: 'string' }, required: false },
-          { in: 'query', name: 'vocation', schema: { type: 'string' }, required: false },
-          { in: 'query', name: 'minLevel', schema: { type: 'integer', minimum: 1 }, required: false },
-          { in: 'query', name: 'maxLevel', schema: { type: 'integer', minimum: 1 }, required: false },
-          { in: 'query', name: 'page', schema: { type: 'integer', minimum: 1 }, required: false },
-          { in: 'query', name: 'order', schema: { type: 'string', enum: ['price', 'level', 'end'] }, required: false },
-          { in: 'query', name: 'sort', schema: { type: 'string', enum: ['asc', 'desc'] }, required: false },
-        ],
-        responses: {
-          '200': { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/AuctionListResponse' } } } },
-          '400': { description: 'Parâmetros inválidos' },
-          '502': { description: 'Erro na origem (scraping / upstream)' },
-        },
-      },
-    },
-
     // ===== Calculator =====
     '/api/calculator/tibia-coin': {
       get: {

@@ -4,8 +4,7 @@ import { useAuthStore } from '@/features/auth/useAuthStore'
 import logo from '@/assets/fansite-logo.png'
 
 const NAV_LINKS = [
-  { to: '/characters', label: 'Personagens' },
-  { to: '/bazaar', label: 'Char Bazaar' },
+  { to: '/characters', label: 'Buscar personagem' },
   { to: '/bosses', label: 'Bosses' },
   { to: '/calculator', label: 'Calculadoras' },
   { to: '/worlds', label: 'Worlds' },
