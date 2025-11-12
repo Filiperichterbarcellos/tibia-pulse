@@ -26,14 +26,14 @@ function pointsToAdvance(skillValue: number, vocation: Vocation, skill: SkillKey
 export function requiredSkillPoints({
   current,
   target,
-  percentage,
+  percentageLeft,
   skill,
   vocation,
   loyaltyBonus,
 }: {
   current: number
   target: number
-  percentage: number
+  percentageLeft: number
   skill: SkillKey
   vocation: Vocation
   loyaltyBonus: number
@@ -42,14 +42,14 @@ export function requiredSkillPoints({
   const targetPoints = skillToPoints(target, vocation, skill)
   const required = targetPoints - currentPoints
 
-  const currentCompleted = percentage / 100
+  const remaining = Math.max(0, Math.min(100, percentageLeft)) / 100
 
   let total = 0
   if (target - current === 1) {
-    total = required * currentCompleted
+    total = required * remaining
   } else {
     const nextPoints = pointsToAdvance(current, vocation, skill)
-    total = required - nextPoints * (1 - currentCompleted)
+    total = required - nextPoints * (1 - remaining)
   }
 
   return total / (1 + loyaltyBonus / 100)

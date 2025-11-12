@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { Heart } from 'lucide-react'
 import { getBossSprite } from './sprites'
 import type { BossEntry } from './bossesData'
+import type { KillStatsEntry } from './api'
 
 type Props = {
   entry: BossEntry
@@ -9,6 +10,8 @@ type Props = {
   onToggleFavorite?: (entry: BossEntry) => void
   isFavorite?: boolean
   favoriteDisabled?: boolean
+  worldStats?: KillStatsEntry
+  worldName?: string
 }
 
 export default function BossCard({
@@ -17,13 +20,16 @@ export default function BossCard({
   onToggleFavorite,
   isFavorite = false,
   favoriteDisabled,
+  worldStats,
+  worldName,
 }: Props) {
   const sprite = getBossSprite(entry.name)
   const respawnText = formatRespawn(entry)
   const lootPreview = entry.loot.length ? entry.loot.slice(0, 2).join(', ') : 'Sem loot destacado'
+  const recentInfo = getRecentKillLabel(worldStats, worldName)
 
   return (
-    <article className="boss-card">
+    <article className="boss-card" data-highlight={recentInfo ? 'recent' : undefined}>
       <header>
         <div className="boss-card__title">
           {sprite && (
@@ -36,7 +42,10 @@ export default function BossCard({
               className="boss-card__sprite"
             />
           )}
-          <h3>{entry.name}</h3>
+          <div>
+            <h3>{entry.name}</h3>
+            {recentInfo && <p className="boss-card__recent">{recentInfo}</p>}
+          </div>
         </div>
         <div className="boss-card__actions">
           {onToggleFavorite && (
@@ -70,6 +79,16 @@ export default function BossCard({
           <dt>Loot</dt>
           <dd className="truncate">{lootPreview}</dd>
         </div>
+        {worldStats && (
+          <div>
+            <dt>Mortes recentes</dt>
+            <dd>
+              {worldStats.last_day_killed > 0
+                ? `${worldStats.last_day_killed} nas últimas 24h`
+                : `${worldStats.last_week_killed} na última semana`}
+            </dd>
+          </div>
+        )}
       </dl>
     </article>
   )
@@ -80,4 +99,15 @@ function formatRespawn(entry: BossEntry) {
   const { min, max } = entry.respawn
   if (min === max) return `${min} dias`
   return `${min}-${max} dias`
+}
+
+function getRecentKillLabel(stats?: KillStatsEntry, worldName?: string) {
+  if (!stats) return null
+  if (stats.last_day_killed > 0) {
+    return `Apareceu em ${worldName ?? 'este mundo'} nas últimas 24h`
+  }
+  if (stats.last_week_killed > 0) {
+    return `Apareceu em ${worldName ?? 'este mundo'} na última semana`
+  }
+  return null
 }

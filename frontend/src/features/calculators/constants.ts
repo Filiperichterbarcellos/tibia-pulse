@@ -14,6 +14,7 @@ export const ELEMENTAL_PROC_CHANCE = 0.1
 export const POWERFUL_MULTIPLIER = 1.05
 
 export const MAX_STAMINA_MINUTES = 42 * 60
+export const HAPPY_HOUR_STAMINA_MINUTES = 39 * 60
 export const STAMINA_MINUTES_PER_REAL_MINUTE = 1 / 3
 
 export const IMBUEMENT_TIERS = [

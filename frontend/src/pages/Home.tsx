@@ -14,7 +14,7 @@ export default function Home() {
               Explore personagens, leilões e mundos
             </h1>
             <p className="text-zinc-600 dark:text-zinc-400">
-              Visual no estilo Exevo Pan, em React + Vite.
+              Visual retro inspirado nos fansites clássicos, feito em React + Vite.
             </p>
             <div className="flex items-center gap-2">
               <input

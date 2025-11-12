@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import BossCard from '@/features/bosses/BossCard'
 import BossModal from '@/features/bosses/BossModal'
 import { BOSSES, type BossEntry } from '@/features/bosses/bossesData'
@@ -6,6 +6,7 @@ import { listWorldNames } from '@/features/worlds/api'
 import { useFavorites, type FavoriteRecord } from '@/features/favorites/useFavorites'
 import { useAuthStore } from '@/features/auth/useAuthStore'
 import { getBossSprite } from '@/features/bosses/sprites'
+import { fetchWorldKillStats, type KillStatsEntry, type KillStatsResponse } from '@/features/bosses/api'
 
 export default function Bosses() {
   const [worlds, setWorlds] = useState<string[]>([])
@@ -13,6 +14,10 @@ export default function Bosses() {
   const [query, setQuery] = useState('')
   const [modalBoss, setModalBoss] = useState<BossEntry | null>(null)
   const [favoriteMessage, setFavoriteMessage] = useState<string | null>(null)
+  const [worldStats, setWorldStats] = useState<KillStatsResponse | null>(null)
+  const [worldStatsLoading, setWorldStatsLoading] = useState(false)
+  const [worldStatsError, setWorldStatsError] = useState<string | null>(null)
+  const statsCache = useRef(new Map<string, KillStatsResponse | null>())
 
   type BossFavorite = FavoriteRecord<BossFavoriteSnapshot>
   const {
@@ -38,18 +43,78 @@ export default function Bosses() {
   }, [])
 
   useEffect(() => {
+    let active = true
+    async function load() {
+      if (!selectedWorld) return
+      setWorldStatsLoading(true)
+      setWorldStatsError(null)
+      if (statsCache.current.has(selectedWorld)) {
+        setWorldStats(statsCache.current.get(selectedWorld) ?? null)
+        setWorldStatsLoading(false)
+        return
+      }
+      try {
+        const data = await fetchWorldKillStats(selectedWorld)
+        if (!active) return
+        statsCache.current.set(selectedWorld, data)
+        setWorldStats(data)
+        if (!data) setWorldStatsError('Ainda não há registros recentes para este mundo.')
+      } catch (err: any) {
+        if (!active) return
+        const message = err?.response?.data?.error ?? 'Não foi possível carregar os dados do mundo.'
+        setWorldStats(null)
+        setWorldStatsError(message)
+      } finally {
+        if (active) setWorldStatsLoading(false)
+      }
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [selectedWorld])
+
+  useEffect(() => {
     if (!favoriteMessage) return
     const timeout = setTimeout(() => setFavoriteMessage(null), 4000)
     return () => clearTimeout(timeout)
   }, [favoriteMessage])
 
-  const recent = useMemo(
-    () =>
-      BOSSES.slice()
-        .sort((a, b) => (a.respawn?.min ?? 99) - (b.respawn?.min ?? 99))
-        .slice(0, 10),
-    [],
-  )
+  const bossNameMap = useMemo(() => {
+    const map = new Map<string, BossEntry>()
+    BOSSES.forEach((boss) => {
+      map.set(boss.name.toLowerCase(), boss)
+    })
+    return map
+  }, [])
+
+  const worldStatsMap = useMemo(() => {
+    const map = new Map<string, KillStatsEntry>()
+    if (worldStats?.entries) {
+      worldStats.entries.forEach((entry) => {
+        map.set(entry.race.toLowerCase(), entry)
+      })
+    }
+    return map
+  }, [worldStats])
+
+  const recentTracked = useMemo(() => {
+    if (worldStats?.entries?.length) {
+      return worldStats.entries
+        .filter((entry) => entry.last_day_killed > 0 || entry.last_week_killed > 0)
+        .map((entry) => {
+          const boss = bossNameMap.get(entry.race.toLowerCase())
+          return boss ? { boss, stats: entry } : null
+        })
+        .filter((value): value is { boss: BossEntry; stats: KillStatsEntry } => Boolean(value))
+        .sort((a, b) => b.stats.last_day_killed - a.stats.last_day_killed)
+        .slice(0, 8)
+    }
+    const fallback = BOSSES.slice()
+      .sort((a, b) => (a.respawn?.min ?? 99) - (b.respawn?.min ?? 99))
+      .slice(0, 8)
+    return fallback.map((boss) => ({ boss, stats: undefined }))
+  }, [worldStats, bossNameMap])
 
   const filteredBosses = useMemo(() => {
     const term = query.trim().toLowerCase()
@@ -115,6 +180,13 @@ export default function Bosses() {
             </select>
           </div>
         </label>
+        <div className="text-xs text-slate-500">
+          {worldStatsLoading && 'Carregando estatísticas do mundo...'}
+          {!worldStatsLoading && worldStats && `Dados em tempo real de ${selectedWorld}`}
+          {!worldStatsLoading && worldStatsError && (
+            <span className="text-red-500">{worldStatsError}</span>
+          )}
+        </div>
 
         <label className="retro-input">
           <span>Buscar boss</span>
@@ -185,17 +257,30 @@ export default function Bosses() {
 
       <div className="grid gap-6 lg:grid-cols-4">
         <section className="lg:col-span-1 retro-panel space-y-4">
-          <p className="filter-label">Recentemente rastreados</p>
+          <p className="filter-label">
+            Aparições recentes {worldStats ? `(${selectedWorld})` : '(destaques)'}
+          </p>
           <div className="grid gap-3">
-            {recent.map((entry) => (
+            {recentTracked.length === 0 && (
+              <p className="text-sm text-slate-500">Sem registros recentes para este mundo.</p>
+            )}
+            {recentTracked.map(({ boss, stats }) => (
               <button
-                key={entry.name}
+                key={boss.name}
                 type="button"
                 className="text-left rounded-2xl border border-slate-200 px-3 py-2 hover:border-indigo-300"
-                onClick={() => setModalBoss(entry)}
+                onClick={() => setModalBoss(boss)}
               >
-                <p className="font-semibold text-slate-900">{entry.name}</p>
-                <small className="text-slate-500">{formatRespawn(entry)}</small>
+                <p className="font-semibold text-slate-900">{boss.name}</p>
+                {stats ? (
+                  <small className="text-slate-500">
+                    {stats.last_day_killed > 0
+                      ? `${stats.last_day_killed} mortes nas últimas 24h`
+                      : `${stats.last_week_killed} mortes na última semana`}
+                  </small>
+                ) : (
+                  <small className="text-slate-500">{formatRespawn(boss)}</small>
+                )}
               </button>
             ))}
           </div>
@@ -206,6 +291,7 @@ export default function Bosses() {
           <div className="grid gap-4 md:grid-cols-2">
             {filteredBosses.map((entry) => {
               const favorite = isFavorite(entry.name)
+              const stats = worldStatsMap.get(entry.name.toLowerCase())
               return (
                 <BossCard
                   key={entry.name}
@@ -214,6 +300,8 @@ export default function Bosses() {
                   onToggleFavorite={handleFavoriteToggle}
                   isFavorite={Boolean(favorite)}
                   favoriteDisabled={updatingFavoriteKey === entry.name}
+                  worldStats={stats}
+                  worldName={selectedWorld}
                 />
               )
             })}

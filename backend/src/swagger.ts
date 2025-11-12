@@ -16,7 +16,7 @@ export const swaggerSpec: OpenAPIV3.Document = {
     { name: 'Worlds', description: 'Listagem e detalhe de mundos' },
     {
       name: 'Characters',
-      description: 'Busca e detalhes de personagens (TibiaData + scraping tibia.com / GuildStats)',
+      description: 'Busca e detalhes de personagens (TibiaData + scraping tibia.com / rastreador proprietário)',
     },
     { name: 'Bosses', description: 'Bosses boostáveis e estatísticas de kills' },
     { name: 'Calculator', description: 'Calculadoras diversas (Tibia Coin, etc.)' },
@@ -365,7 +365,7 @@ export const swaggerSpec: OpenAPIV3.Document = {
     '/api/characters/{name}': {
       get: {
         tags: ['Characters'],
-        summary: 'Detalhes enriquecidos de um personagem (TibiaData + tibia.com + GuildStats)',
+        summary: 'Detalhes enriquecidos de um personagem (TibiaData + tibia.com + rastreador proprietário)',
         parameters: [
           { in: 'path', name: 'name', required: true, schema: { type: 'string' }, description: 'Nome do personagem (ex.: Kaamez)' },
         ],

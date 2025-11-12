@@ -3,11 +3,11 @@ import * as cheerio from 'cheerio'
 import type {
   CharacterSummary,
   CharacterExperienceHistory,
-  GuildStatsSummary,
-  GuildStatsLevelHistoryEntry,
-  GuildStatsTimeOnlineSummary,
-  GuildStatsHighscoreEntry,
-  GuildStatsDeathEntry,
+  PulseStatsSummary,
+  PulseStatsLevelHistoryEntry,
+  PulseStatsTimeOnlineSummary,
+  PulseStatsHighscoreEntry,
+  PulseStatsDeathEntry,
 } from '../types/character'
 
 type CheerioRoot = ReturnType<typeof cheerio.load>
@@ -16,10 +16,10 @@ const BASE_URL = 'https://www.tibia.com/community/?subtopic=characters&name='
 const ALL_ORIGINS = 'https://api.allorigins.win/raw?url='
 const JINA_PROXY = 'https://r.jina.ai/'
 
-const GUILDSTATS_BASE = 'https://guildstats.eu/character'
-const GUILDSTATS_HISTORY_URL = 'https://guildstats.eu/include/pagiationHistory_data.php'
-const GUILDSTATS_DEATH_URL = 'https://guildstats.eu/include/pagiationDeath_data.php'
-const GUILDSTATS_TIMEOUT = 15000
+const STATS_BASE = 'https://guildstats.eu/character'
+const STATS_HISTORY_URL = 'https://guildstats.eu/include/pagiationHistory_data.php'
+const STATS_DEATH_URL = 'https://guildstats.eu/include/pagiationDeath_data.php'
+const STATS_TIMEOUT = 15000
 
 const DIRECT_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Tibia Pulse)',
@@ -214,24 +214,43 @@ function extractInlineValue(raw: string | undefined, label: string) {
   return match?.[1]?.trim() || undefined
 }
 
-async function fetchGuildStatsTab(name: string, tab?: number | string): Promise<string> {
+async function fetchTrackerTab(name: string, tab?: number | string): Promise<string> {
   const query = [`nick=${encodeURIComponent(name)}`]
   if (typeof tab !== 'undefined') query.push(`tab=${tab}`)
-  const url = `${GUILDSTATS_BASE}?${query.join('&')}`
-  try {
-    const { data } = await axios.get<string>(url, { timeout: GUILDSTATS_TIMEOUT })
-    return typeof data === 'string' ? data : ''
-  } catch (err) {
-    console.warn('[guildstats] tab fetch failed', {
-      name,
-      tab,
-      reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
-    })
-    return ''
+  const url = `${STATS_BASE}?${query.join('&')}`
+
+  const fetchers = [
+    () =>
+      axios.get<string>(url, {
+        timeout: STATS_TIMEOUT,
+        headers: DIRECT_HEADERS,
+      }),
+    () =>
+      axios.get<string>(`${ALL_ORIGINS}${encodeURIComponent(url)}`, {
+        timeout: STATS_TIMEOUT,
+      }),
+    () =>
+      axios.get<string>(`${JINA_PROXY}${url}`, {
+        timeout: STATS_TIMEOUT,
+      }),
+  ]
+
+  for (const fetcher of fetchers) {
+    try {
+      const { data } = await fetcher()
+      if (typeof data === 'string' && data.trim()) {
+        return data
+      }
+    } catch (err) {
+      const reason = axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err)
+      console.warn('[guildstats] tab fetch failed', { name, tab, reason })
+    }
   }
+
+  return ''
 }
 
-function isGuildStatsNotFound(html: string) {
+function isTrackerNotFound(html: string) {
   if (!html) return true
   return /Sorry! Guild or character does not exsists/i.test(html)
 }
@@ -269,7 +288,7 @@ function parseExperienceHistory(html: string): CharacterExperienceHistory[] {
     const averageExpPerHour = cells.length > 6 ? parseInteger($(cells[6]).text()) : undefined
 
     entries.push({
-      date: normalizeGuildStatsDate(dateRaw) ?? dateRaw,
+      date: normalizeTrackerDate(dateRaw) ?? dateRaw,
       expChange,
       level: levelInfo.value ?? 0,
       vocationRank: rankInfo.value,
@@ -301,7 +320,7 @@ function parseBestDay(html: string) {
   const date = $(cells[0]).text().trim()
   const value = parseSignedInteger($(cells[1]).text())
   if (!date || typeof value === 'undefined') return undefined
-  return { date: normalizeGuildStatsDate(date) ?? date, value }
+  return { date: normalizeTrackerDate(date) ?? date, value }
 }
 
 function parseAverageDaily(html: string) {
@@ -316,7 +335,7 @@ function parseAverageDaily(html: string) {
   return undefined
 }
 
-function parseTimeOnlineSummary(html: string): GuildStatsTimeOnlineSummary | undefined {
+function parseTimeOnlineSummary(html: string): PulseStatsTimeOnlineSummary | undefined {
   if (!html) return undefined
   const $ = cheerio.load(html)
   const table = $('table')
@@ -332,7 +351,7 @@ function parseTimeOnlineSummary(html: string): GuildStatsTimeOnlineSummary | und
 
   const cells = row.find('td')
   const headerCells = table.find('thead th')
-  const weekdays: GuildStatsTimeOnlineSummary['weekdays'] = []
+  const weekdays: PulseStatsTimeOnlineSummary['weekdays'] = []
   for (let i = 3; i < cells.length; i += 1) {
     const headerLabel = headerCells.eq(i).text().trim()
     const cell = cells.eq(i)
@@ -345,7 +364,7 @@ function parseTimeOnlineSummary(html: string): GuildStatsTimeOnlineSummary | und
     })
   }
 
-  const summary: GuildStatsTimeOnlineSummary = {
+  const summary: PulseStatsTimeOnlineSummary = {
     lastMonth: cells.eq(0).text().trim() || undefined,
     currentMonth: cells.eq(1).text().trim() || undefined,
     currentWeek: cells.eq(2).text().trim() || undefined,
@@ -358,7 +377,7 @@ function parseTimeOnlineSummary(html: string): GuildStatsTimeOnlineSummary | und
   return summary
 }
 
-function parseHighscores(html: string): GuildStatsHighscoreEntry[] | undefined {
+function parseHighscores(html: string): PulseStatsHighscoreEntry[] | undefined {
   if (!html) return undefined
   const $ = cheerio.load(html)
   const table = $('table')
@@ -369,7 +388,7 @@ function parseHighscores(html: string): GuildStatsHighscoreEntry[] | undefined {
     .first()
 
   if (!table.length) return undefined
-  const entries: GuildStatsHighscoreEntry[] = []
+  const entries: PulseStatsHighscoreEntry[] = []
   table.find('tr').each((_, row) => {
     const cells = $(row).find('td')
     if (!cells.length) return
@@ -380,9 +399,9 @@ function parseHighscores(html: string): GuildStatsHighscoreEntry[] | undefined {
     let link: string | undefined
     if (cells.length > 2) {
       position = parseInteger(cells.eq(2).text())
-      link = absoluteGuildStatsUrl(cells.eq(2).find('a').attr('href'))
+      link = absoluteTrackerUrl(cells.eq(2).find('a').attr('href'))
     } else {
-      link = absoluteGuildStatsUrl(cells.eq(1).find('a').attr('href'))
+      link = absoluteTrackerUrl(cells.eq(1).find('a').attr('href'))
     }
     entries.push({ skill, value, position, link })
   })
@@ -399,31 +418,44 @@ function extractUidAndHistoryCounter(html: string) {
   return { uid, historyCounter }
 }
 
-async function fetchGuildStatsLevelHistory(
+async function fetchTrackerLevelHistory(
   uid: string,
   historyCounter?: string,
-): Promise<GuildStatsLevelHistoryEntry[] | undefined> {
+): Promise<PulseStatsLevelHistoryEntry[] | undefined> {
   const params = new URLSearchParams({ UID: uid, page: '1' })
   if (historyCounter) params.set('historyCounter', historyCounter)
-  const url = `${GUILDSTATS_HISTORY_URL}?${params.toString()}`
-  try {
-    const { data } = await axios.get<string>(url, { timeout: GUILDSTATS_TIMEOUT })
-    const html = typeof data === 'string' ? data : ''
-    const rows = parseLevelHistoryRows(html)
-    return rows.length ? rows : undefined
-  } catch (err) {
-    console.warn('[guildstats] level history request failed', {
-      uid,
-      reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
-    })
-    return undefined
+  const url = `${STATS_HISTORY_URL}?${params.toString()}`
+  const sources = [
+    () =>
+      axios.get<string>(url, {
+        timeout: STATS_TIMEOUT,
+        headers: DIRECT_HEADERS,
+      }),
+    () =>
+      axios.get<string>(`${JINA_PROXY}${url}`, {
+        timeout: STATS_TIMEOUT,
+      }),
+  ]
+  for (const fetcher of sources) {
+    try {
+      const { data } = await fetcher()
+      const html = typeof data === 'string' ? data : ''
+      const rows = parseLevelHistoryRows(html)
+      if (rows.length) return rows
+    } catch (err) {
+      console.warn('[tracker] level history request failed', {
+        uid,
+        reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
+      })
+    }
   }
+  return undefined
 }
 
-function parseLevelHistoryRows(html: string): GuildStatsLevelHistoryEntry[] {
+function parseLevelHistoryRows(html: string): PulseStatsLevelHistoryEntry[] {
   if (!html) return []
   const $ = cheerio.load(html)
-  const entries: GuildStatsLevelHistoryEntry[] = []
+  const entries: PulseStatsLevelHistoryEntry[] = []
   $('table tr')
     .filter((_, row) => $(row).find('td').length >= 4)
     .each((_, row) => {
@@ -434,13 +466,13 @@ function parseLevelHistoryRows(html: string): GuildStatsLevelHistoryEntry[] {
       const levelCell = cells.eq(3)
       const level = parseInteger(levelCell.text()) ?? 0
       const htmlContent = levelCell.html() ?? ''
-      let change: GuildStatsLevelHistoryEntry['change']
+      let change: PulseStatsLevelHistoryEntry['change']
       if (htmlContent.includes('fa-caret-up')) change = 'up'
       else if (htmlContent.includes('fa-caret-down')) change = 'down'
       else change = 'same'
       entries.push({
         index,
-        when: normalizeGuildStatsDateTime(whenRaw) ?? whenRaw,
+        when: normalizeTrackerDateTime(whenRaw) ?? whenRaw,
         relative,
         level,
         change,
@@ -449,27 +481,40 @@ function parseLevelHistoryRows(html: string): GuildStatsLevelHistoryEntry[] {
   return entries
 }
 
-async function fetchGuildStatsDeaths(uid: string): Promise<GuildStatsDeathEntry[] | undefined> {
+async function fetchTrackerDeaths(uid: string): Promise<PulseStatsDeathEntry[] | undefined> {
   const params = new URLSearchParams({ UID: uid, page: '1' })
-  const url = `${GUILDSTATS_DEATH_URL}?${params.toString()}`
-  try {
-    const { data } = await axios.get<string>(url, { timeout: GUILDSTATS_TIMEOUT })
-    const html = typeof data === 'string' ? data : ''
-    const entries = parseGuildStatsDeaths(html)
-    return entries.length ? entries : undefined
-  } catch (err) {
-    console.warn('[guildstats] death history request failed', {
-      uid,
-      reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
-    })
-    return undefined
+  const url = `${STATS_DEATH_URL}?${params.toString()}`
+  const sources = [
+    () =>
+      axios.get<string>(url, {
+        timeout: STATS_TIMEOUT,
+        headers: DIRECT_HEADERS,
+      }),
+    () =>
+      axios.get<string>(`${JINA_PROXY}${url}`, {
+        timeout: STATS_TIMEOUT,
+      }),
+  ]
+  for (const fetcher of sources) {
+    try {
+      const { data } = await fetcher()
+      const html = typeof data === 'string' ? data : ''
+      const entries = parseTrackerDeaths(html)
+      if (entries.length) return entries
+    } catch (err) {
+      console.warn('[tracker] death history request failed', {
+        uid,
+        reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
+      })
+    }
   }
+  return undefined
 }
 
-function parseGuildStatsDeaths(html: string): GuildStatsDeathEntry[] {
+function parseTrackerDeaths(html: string): PulseStatsDeathEntry[] {
   if (!html) return []
   const $ = cheerio.load(html)
-  const entries: GuildStatsDeathEntry[] = []
+      const entries: PulseStatsDeathEntry[] = []
   $('table tr')
     .filter((_, row) => $(row).find('td').length >= 4)
     .each((_, row) => {
@@ -481,7 +526,7 @@ function parseGuildStatsDeaths(html: string): GuildStatsDeathEntry[] {
       const expLost = cells.eq(4) ? parseSignedInteger(cells.eq(4).text()) : undefined
       entries.push({
         index,
-        when: normalizeGuildStatsDateTime(when) ?? when,
+        when: normalizeTrackerDateTime(when) ?? when,
         killer,
         level,
         expLost,
@@ -525,7 +570,7 @@ function parseSignedInteger(value?: string | null) {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-function normalizeGuildStatsDate(value?: string) {
+function normalizeTrackerDate(value?: string) {
   if (!value) return undefined
   const trimmed = value.trim()
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
@@ -534,7 +579,7 @@ function normalizeGuildStatsDate(value?: string) {
   return `${match[3]}-${match[2]}-${match[1]}`
 }
 
-function normalizeGuildStatsDateTime(value?: string) {
+function normalizeTrackerDateTime(value?: string) {
   if (!value) return undefined
   const match = value.trim().match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})/)
   if (!match) return undefined
@@ -544,7 +589,7 @@ function normalizeGuildStatsDateTime(value?: string) {
   return date.toISOString()
 }
 
-function absoluteGuildStatsUrl(href?: string) {
+function absoluteTrackerUrl(href?: string) {
   if (!href) return undefined
   if (/^https?:\/\//i.test(href)) return href
   try {
@@ -554,16 +599,16 @@ function absoluteGuildStatsUrl(href?: string) {
   }
 }
 
-export async function fetchGuildStats(name: string): Promise<GuildStatsSummary | null> {
-  const experienceHtml = await fetchGuildStatsTab(name, 9)
-  if (!experienceHtml || isGuildStatsNotFound(experienceHtml)) {
+export async function fetchPulseStats(name: string): Promise<PulseStatsSummary | null> {
+  const experienceHtml = await fetchTrackerTab(name, 9)
+  if (!experienceHtml || isTrackerNotFound(experienceHtml)) {
     return null
   }
 
   const [timeHtml, highscoreHtml, historyHtml] = await Promise.all([
-    fetchGuildStatsTab(name, 2).catch(() => ''),
-    fetchGuildStatsTab(name, 3).catch(() => ''),
-    fetchGuildStatsTab(name, 8).catch(() => ''),
+    fetchTrackerTab(name, 2).catch(() => ''),
+    fetchTrackerTab(name, 3).catch(() => ''),
+    fetchTrackerTab(name, 8).catch(() => ''),
   ])
 
   const history = parseExperienceHistory(experienceHtml)
@@ -576,8 +621,8 @@ export async function fetchGuildStats(name: string): Promise<GuildStatsSummary |
 
   const { uid, historyCounter } = extractUidAndHistoryCounter(historyHtml)
   const [levelHistory, guildDeaths] = await Promise.all([
-    uid ? fetchGuildStatsLevelHistory(uid, historyCounter) : Promise.resolve<GuildStatsLevelHistoryEntry[] | undefined>(undefined),
-    uid ? fetchGuildStatsDeaths(uid) : Promise.resolve<GuildStatsDeathEntry[] | undefined>(undefined),
+    uid ? fetchTrackerLevelHistory(uid, historyCounter) : Promise.resolve<PulseStatsLevelHistoryEntry[] | undefined>(undefined),
+    uid ? fetchTrackerDeaths(uid) : Promise.resolve<PulseStatsDeathEntry[] | undefined>(undefined),
   ])
 
   return {

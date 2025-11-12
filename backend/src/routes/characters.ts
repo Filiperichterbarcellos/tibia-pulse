@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { TibiaDataClient } from '../services/tibiadata'
-import { fetchCharacterProfile, fetchGuildStats } from '../services/characterService'
+import { fetchCharacterProfile, fetchPulseStats } from '../services/characterService'
 import type { CharacterSummary } from '../types/character'
 
 const router = Router()
@@ -10,13 +10,13 @@ router.get('/:name', async (req: Request, res: Response) => {
     const name = String(req.params.name || '').trim()
     if (!name) return res.status(400).type('application/json').json({ error: 'missing name' })
 
-    const [tibiaData, tibiaProfile, guildStats] = await Promise.all([
+    const [tibiaData, tibiaProfile, trackerStats] = await Promise.all([
       TibiaDataClient.character(name).catch((err) => {
         console.warn('[tibiadata] fallback triggered', err?.message ?? err)
         return null
       }),
       fetchCharacterProfile(name),
-      fetchGuildStats(name).catch(() => null),
+      fetchPulseStats(name).catch(() => null),
     ])
 
     // tenta achar a raiz independente do formato
@@ -58,14 +58,14 @@ router.get('/:name', async (req: Request, res: Response) => {
               reason: d?.reason ?? '',
             }))
           : [],
-      currentXP: guildStats?.currentXP,
-      xpToNextLevel: guildStats?.currentXP
-        ? calculateXpToNextLevel(level, guildStats.currentXP)
+      currentXP: trackerStats?.currentXP,
+      xpToNextLevel: trackerStats?.currentXP
+        ? calculateXpToNextLevel(level, trackerStats.currentXP)
         : undefined,
-      averageDailyXP: guildStats?.averageDaily ?? undefined,
-      bestDayXP: guildStats?.bestDay ?? null,
-      history: guildStats?.history,
-      guildStats: guildStats ?? undefined,
+      averageDailyXP: trackerStats?.averageDaily ?? undefined,
+      bestDayXP: trackerStats?.bestDay ?? null,
+      history: trackerStats?.history,
+      trackerStats: trackerStats ?? undefined,
     }
 
     return res.type('application/json').json(base)

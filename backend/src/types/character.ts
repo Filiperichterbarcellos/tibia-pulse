@@ -16,7 +16,7 @@ export type CharacterExperienceHistory = {
   averageExpPerHour?: number
 }
 
-export type GuildStatsLevelHistoryEntry = {
+export type PulseStatsLevelHistoryEntry = {
   index: number
   when: string
   relative?: string
@@ -24,28 +24,28 @@ export type GuildStatsLevelHistoryEntry = {
   change?: 'up' | 'down' | 'same'
 }
 
-export type GuildStatsTimeOnlineDay = {
+export type PulseStatsTimeOnlineDay = {
   label: string
   raw?: string
   durationMinutes?: number
   doubleEvent?: boolean
 }
 
-export type GuildStatsTimeOnlineSummary = {
+export type PulseStatsTimeOnlineSummary = {
   lastMonth?: string
   currentMonth?: string
   currentWeek?: string
-  weekdays?: GuildStatsTimeOnlineDay[]
+  weekdays?: PulseStatsTimeOnlineDay[]
 }
 
-export type GuildStatsHighscoreEntry = {
+export type PulseStatsHighscoreEntry = {
   skill: string
   value: string
   position?: number
   link?: string
 }
 
-export type GuildStatsDeathEntry = {
+export type PulseStatsDeathEntry = {
   index: number
   when: string
   killer: string
@@ -53,15 +53,15 @@ export type GuildStatsDeathEntry = {
   expLost?: number
 }
 
-export type GuildStatsSummary = {
+export type PulseStatsSummary = {
   currentXP?: number
   bestDay?: { date: string; value: number }
   averageDaily?: number
   history: CharacterExperienceHistory[]
-  levelHistory?: GuildStatsLevelHistoryEntry[]
-  timeOnline?: GuildStatsTimeOnlineSummary
-  highscores?: GuildStatsHighscoreEntry[]
-  guildDeaths?: GuildStatsDeathEntry[]
+  levelHistory?: PulseStatsLevelHistoryEntry[]
+  timeOnline?: PulseStatsTimeOnlineSummary
+  highscores?: PulseStatsHighscoreEntry[]
+  guildDeaths?: PulseStatsDeathEntry[]
 }
 
 export type CharacterSummary = {
@@ -91,5 +91,5 @@ export type CharacterSummary = {
     value: number
   } | null
   history?: CharacterExperienceHistory[]
-  guildStats?: GuildStatsSummary
+  trackerStats?: PulseStatsSummary
 }

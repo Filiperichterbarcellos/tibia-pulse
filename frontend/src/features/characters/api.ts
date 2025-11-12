@@ -18,7 +18,7 @@ export type CharacterExperienceEntry = {
   averageExpPerHour?: number
 }
 
-export type GuildStatsLevelHistoryEntry = {
+export type PulseStatsLevelHistoryEntry = {
   index: number
   when: string
   relative?: string
@@ -26,28 +26,28 @@ export type GuildStatsLevelHistoryEntry = {
   change?: 'up' | 'down' | 'same'
 }
 
-export type GuildStatsTimeOnlineDay = {
+export type PulseStatsTimeOnlineDay = {
   label: string
   raw?: string
   durationMinutes?: number
   doubleEvent?: boolean
 }
 
-export type GuildStatsTimeOnlineSummary = {
+export type PulseStatsTimeOnlineSummary = {
   lastMonth?: string
   currentMonth?: string
   currentWeek?: string
-  weekdays?: GuildStatsTimeOnlineDay[]
+  weekdays?: PulseStatsTimeOnlineDay[]
 }
 
-export type GuildStatsHighscoreEntry = {
+export type PulseStatsHighscoreEntry = {
   skill: string
   value: string
   position?: number
   link?: string
 }
 
-export type GuildStatsDeathEntry = {
+export type PulseStatsDeathEntry = {
   index: number
   when: string
   killer: string
@@ -55,15 +55,15 @@ export type GuildStatsDeathEntry = {
   expLost?: number
 }
 
-export type GuildStatsSummary = {
+export type PulseStatsSummary = {
   currentXP?: number
   bestDay?: { date: string; value: number }
   averageDaily?: number
   history?: CharacterExperienceEntry[]
-  levelHistory?: GuildStatsLevelHistoryEntry[]
-  timeOnline?: GuildStatsTimeOnlineSummary
-  highscores?: GuildStatsHighscoreEntry[]
-  guildDeaths?: GuildStatsDeathEntry[]
+  levelHistory?: PulseStatsLevelHistoryEntry[]
+  timeOnline?: PulseStatsTimeOnlineSummary
+  highscores?: PulseStatsHighscoreEntry[]
+  guildDeaths?: PulseStatsDeathEntry[]
 }
 
 export type CharacterSummary = {
@@ -89,7 +89,7 @@ export type CharacterSummary = {
   averageDailyXP?: number
   bestDayXP?: { date: string; value: number } | null
   history?: CharacterExperienceEntry[]
-  guildStats?: GuildStatsSummary
+  trackerStats?: PulseStatsSummary
   deaths: DeathEntry[]
 }
 
@@ -107,7 +107,7 @@ export async function getCharacter(name: string): Promise<{ character: Character
   const historySource =
     Array.isArray(c?.history) ? c.history
     : Array.isArray(c?.history?.data) ? c.history.data
-    : Array.isArray(c?.guildStats?.history) ? c.guildStats.history
+    : Array.isArray(c?.trackerStats?.history) ? c.trackerStats.history
     : null
 
   const history: CharacterExperienceEntry[] = historySource ?? []
@@ -135,7 +135,7 @@ export async function getCharacter(name: string): Promise<{ character: Character
     averageDailyXP: asNumber(c?.averageDailyXP ?? c?.avg_daily_xp),
     bestDayXP: c?.bestDayXP ?? c?.best_day ?? null,
     history,
-    guildStats: c?.guildStats,
+    trackerStats: c?.trackerStats,
     deaths,
   }
 

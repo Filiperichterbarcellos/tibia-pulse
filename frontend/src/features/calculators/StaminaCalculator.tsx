@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react'
-import { MAX_STAMINA_MINUTES, STAMINA_MINUTES_PER_REAL_MINUTE } from './constants'
+import {
+  MAX_STAMINA_MINUTES,
+  HAPPY_HOUR_STAMINA_MINUTES,
+  STAMINA_MINUTES_PER_REAL_MINUTE,
+} from './constants'
 
 function parseStamina(value: string): number {
   const [hours = '0', minutes = '0'] = value.split(':')
@@ -21,6 +25,20 @@ function formatDuration(minutes: number) {
   return chunks.join(' ')
 }
 
+function normalizeBonusStamina(minutes: number) {
+  if (minutes > HAPPY_HOUR_STAMINA_MINUTES) {
+    const bonus = minutes - HAPPY_HOUR_STAMINA_MINUTES
+    return HAPPY_HOUR_STAMINA_MINUTES + bonus * 2
+  }
+  return minutes
+}
+
+const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
+  weekday: 'long',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
 export default function StaminaCalculator() {
   const [current, setCurrent] = useState('39:00')
   const [target, setTarget] = useState('42:00')
@@ -28,14 +46,23 @@ export default function StaminaCalculator() {
   const result = useMemo(() => {
     const currentMinutes = parseStamina(current)
     const targetMinutes = parseStamina(target)
-    const delta = Math.max(0, targetMinutes - currentMinutes)
-    const realMinutesNeeded = delta / STAMINA_MINUTES_PER_REAL_MINUTE
+    const normalizedDelta = Math.max(
+      0,
+      normalizeBonusStamina(targetMinutes) - normalizeBonusStamina(currentMinutes),
+    )
+    const realMinutesNeeded = normalizedDelta / STAMINA_MINUTES_PER_REAL_MINUTE
+    const readyAt =
+      realMinutesNeeded > 0
+        ? dateFormatter.format(new Date(Date.now() + realMinutesNeeded * 60_000))
+        : null
     return {
       currentMinutes,
       targetMinutes,
-      staminaMissing: delta,
+      staminaMissing: Math.max(0, targetMinutes - currentMinutes),
+      normalizedDelta,
       realMinutesNeeded,
       formatted: formatDuration(realMinutesNeeded),
+      readyAt,
     }
   }, [current, target])
 
@@ -81,12 +108,19 @@ export default function StaminaCalculator() {
           A stamina atual não pode ser maior que a desejada.
         </div>
       ) : (
-        <div className="stat-card stat-card--highlight">
-          <p>Tempo real necessário</p>
-          <strong>{result.formatted}</strong>
+        <div className="stat-card stat-card--highlight space-y-1">
+          <p>Tempo de descanso</p>
+          <strong>{result.formatted || '—'}</strong>
           <small className="block text-xs text-slate-500 mt-1">
-            {result.staminaMissing / 60} horas de stamina faltando ({result.staminaMissing} minutos)
+            {result.staminaMissing > 0
+              ? `${(result.staminaMissing / 60).toFixed(1)}h de stamina (${result.staminaMissing} minutos)`
+              : 'Nenhuma stamina pendente'}
           </small>
+          {result.readyAt && (
+            <p className="text-xs font-semibold text-slate-600">
+              Pronto {result.readyAt.replace(/^./, (char) => char.toUpperCase())}
+            </p>
+          )}
         </div>
       )}
     </section>
