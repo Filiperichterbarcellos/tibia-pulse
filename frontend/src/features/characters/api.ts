@@ -95,7 +95,7 @@ export type CharacterSummary = {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function requestWithRetry<T>(url: string, attempt = 0): Promise<T> {
+async function requestWithRetry<T = any>(url: string, attempt = 0): Promise<T> {
   try {
     const { data } = await apiClient.get<T>(url)
     return data
@@ -111,31 +111,11 @@ async function requestWithRetry<T>(url: string, attempt = 0): Promise<T> {
   }
 }
 
-type CharacterApiResponse =
-  | { character: CharacterSummary }
-  | { characters?: { data: CharacterSummary } }
-  | CharacterSummary
-
-function extractCharacterPayload(payload: CharacterApiResponse): CharacterSummary {
-  if (payload && typeof payload === 'object') {
-    if ('character' in payload && payload.character) {
-      return payload.character
-    }
-    if ('characters' in payload) {
-      const characters = payload.characters as { data?: CharacterSummary }
-      if (characters?.data) return characters.data
-    }
-  }
-  return payload as CharacterSummary
-}
-
 export async function getCharacter(name: string): Promise<{ character: CharacterSummary }> {
-  const data = await requestWithRetry<CharacterApiResponse>(
-    `/api/characters/${encodeURIComponent(name)}`,
-  )
+  const payload = await requestWithRetry(`/api/characters/${encodeURIComponent(name)}`)
 
   // Backend pode retornar em formatos levemente diferentes; normalizamos aqui
-  const c = extractCharacterPayload(data)
+  const c = ((payload as any)?.character ?? (payload as any)?.characters?.data ?? payload) as any
 
   const deaths: DeathEntry[] =
     Array.isArray(c?.deaths) ? c.deaths
