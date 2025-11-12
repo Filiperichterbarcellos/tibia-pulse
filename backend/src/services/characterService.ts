@@ -2,6 +2,8 @@ import axios from 'axios'
 import * as cheerio from 'cheerio'
 import type { CharacterSummary, CharacterExperienceHistory } from '../types/character'
 
+type CheerioRoot = ReturnType<typeof cheerio.load>
+
 const BASE_URL = 'https://www.tibia.com/community/?subtopic=characters&name='
 const ALL_ORIGINS = 'https://api.allorigins.win/raw?url='
 const JINA_PROXY = 'https://r.jina.ai/'
@@ -67,31 +69,42 @@ export async function fetchCharacterProfile(name: string): Promise<CharacterSumm
     }
   }
 
-  const world = $('td:contains("World:")').next().text().trim() || undefined
-  const vocation = $('td:contains("Vocation:")').next().text().trim() || undefined
-  const level = Number($('td:contains("Level:")').next().text().trim()) || 0
-  const residence = $('td:contains("Residence:")').next().text().trim() || undefined
-  const sex = $('td:contains("Sex:")').next().text().trim() || undefined
-  const created = $('td:contains("Created:")').next().text().trim() || undefined
-  const guild = $('td:contains("Guild membership:")').next().text().trim() || undefined
-  const lastLogin = $('td:contains("Last Login:")').next().text().trim() || undefined
-  const accountStatus = $('td:contains("Account Status:")').next().text().trim() || undefined
-  const house = $('td:contains("House:")').next().text().trim() || undefined
-  const comment = $('td:contains("Comment:")').next().text().trim() || undefined
-  const formerNames = $('td:contains("Former Names:")').next().text().trim() || undefined
-  const title = $('td:contains("Title:")').next().text().trim() || undefined
-  const formerWorld = $('td:contains("Former World:")').next().text().trim() || undefined
-  const achievementPoints = Number($('td:contains("Achievement Points:")').next().text().trim()) || undefined
+  const rawWorld = getFieldRaw($, 'World:')
+  const world =
+    getFieldPrimary($, 'World:') ??
+    (rawWorld ? rawWorld.replace(/Former World:.*/i, '').trim() || undefined : undefined)
+  const vocation = getField($, 'Vocation:')
+  const level = Number(getField($, 'Level:')) || 0
+  const residence = getField($, 'Residence:')
+  const sex = getField($, 'Sex:')
+  const created = getField($, 'Created:')
+  const guild = getField($, 'Guild membership:')
+  const lastLogin = normalizeTibiaDate(getField($, 'Last Login:')) ?? undefined
+  const accountStatus = getField($, 'Account Status:')
+  const house = getField($, 'House:')
+  const comment = getField($, 'Comment:')
+  const formerNames = getField($, 'Former Names:')
+  const rawTitle = getFieldRaw($, 'Title:')
+  const title = getFieldPrimary($, 'Title:') ?? (rawTitle ? rawTitle.replace(/Loyalty Title:.*/i, '').trim() : undefined)
+  const loyaltyTitle = getField($, 'Loyalty Title:')
+  const formerWorld =
+    getField($, 'Former World:') ??
+    (() => {
+      const match = rawWorld?.match(/Former World:\s*(.+)$/i)
+      return match?.[1]?.trim()
+    })()
+  const achievementPoints = Number(getField($, 'Achievement Points:')) || undefined
 
   const deaths: CharacterSummary['deaths'] = []
-  $('#CharacterDeaths .TableContent tbody tr').each((_, row) => {
+  $('#CharacterDeaths .TableContent tr').each((_, row) => {
     const columns = $(row).find('td')
-    if (!columns.length) return
+    if (columns.length < 2) return
     const date = $(columns[0]).text().trim()
     const description = $(columns[1]).text().trim()
-    const match = description.match(/level (\d+)/i)
+    if (!date || !description || /There are no/gi.test(description)) return
+    const match = description.match(/level\s+(\d+)/i)
     deaths.push({
-      time: date ? new Date(date).toISOString() : null,
+      time: normalizeTibiaDate(date),
       level: match ? Number(match[1]) : 0,
       reason: description,
     })
@@ -105,17 +118,71 @@ export async function fetchCharacterProfile(name: string): Promise<CharacterSumm
     residence,
     guild,
     sex,
-    created,
+    created: normalizeTibiaDate(created) ?? undefined,
     lastLogin,
     accountStatus,
     house,
     comment,
     formerNames,
-    title,
+    title: title || loyaltyTitle || undefined,
     formerWorld,
     achievementPoints,
     deaths,
   }
+}
+
+function normalizeTibiaDate(raw?: string | null) {
+  if (!raw) return null
+  const value = raw.trim()
+  if (!value) return null
+  const replaced = value
+    .replace(/CET/g, 'GMT+0100')
+    .replace(/CEST/g, 'GMT+0200')
+    .replace(/\(.*?\)/g, '')
+    .trim()
+  const date = new Date(replaced)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toISOString()
+}
+
+function normalizeLabel(text: string) {
+  return text.replace(/\s+/g, ' ').trim().replace(/:\s*$/, '').toLowerCase()
+}
+
+function findLabelCell($: CheerioRoot, label: string) {
+  const target = normalizeLabel(label)
+  return $('td')
+    .filter((_, el) => normalizeLabel($(el).text()) === target)
+    .first()
+}
+
+function getFieldRaw($: CheerioRoot, label: string) {
+  const cell = findLabelCell($, label)
+  if (!cell.length) return undefined
+  const next = cell.next()
+  if (!next.length) return undefined
+  return next.text()
+}
+
+function getField($: CheerioRoot, label: string) {
+  const raw = getFieldRaw($, label)
+  if (!raw) return undefined
+  const value = raw.replace(/\s+/g, ' ').trim()
+  return value || undefined
+}
+
+function getFieldPrimary($: CheerioRoot, label: string) {
+  const cell = findLabelCell($, label)
+  if (!cell.length) return undefined
+  const next = cell.next()
+  if (!next.length) return undefined
+  const firstText = next
+    .contents()
+    .map((_, node) => (node.type === 'text' ? (node.data ?? '').trim() : ''))
+    .get()
+    .find((text) => text.length > 0)
+  if (firstText) return firstText
+  return next.text().trim() || undefined
 }
 
 export type GuildStatsSummary = {
