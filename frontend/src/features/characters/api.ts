@@ -93,8 +93,26 @@ export type CharacterSummary = {
   deaths: DeathEntry[]
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function requestWithRetry<T>(url: string, attempt = 0): Promise<T> {
+  try {
+    const { data } = await apiClient.get<T>(url)
+    return data
+  } catch (err: any) {
+    const status = err?.response?.status
+    const shouldRetry =
+      attempt < 2 && (status === 404 || status === 502 || status === 503 || status === 504)
+    if (shouldRetry) {
+      await sleep(600 * (attempt + 1))
+      return requestWithRetry<T>(url, attempt + 1)
+    }
+    throw err
+  }
+}
+
 export async function getCharacter(name: string): Promise<{ character: CharacterSummary }> {
-  const { data } = await apiClient.get(`/api/characters/${encodeURIComponent(name)}`)
+  const data = await requestWithRetry(`/api/characters/${encodeURIComponent(name)}`)
 
   // Backend pode retornar em formatos levemente diferentes; normalizamos aqui
   const c = (data?.character ?? data?.characters?.data ?? data) as any
