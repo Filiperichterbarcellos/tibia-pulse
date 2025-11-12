@@ -65,6 +65,7 @@ router.get('/:name', async (req: Request, res: Response) => {
       averageDailyXP: guildStats?.averageDaily ?? undefined,
       bestDayXP: guildStats?.bestDay ?? null,
       history: guildStats?.history,
+      guildStats: guildStats ?? undefined,
     }
 
     return res.type('application/json').json(base)

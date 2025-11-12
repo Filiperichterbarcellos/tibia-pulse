@@ -1,12 +1,25 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
-import type { CharacterSummary, CharacterExperienceHistory } from '../types/character'
+import type {
+  CharacterSummary,
+  CharacterExperienceHistory,
+  GuildStatsSummary,
+  GuildStatsLevelHistoryEntry,
+  GuildStatsTimeOnlineSummary,
+  GuildStatsHighscoreEntry,
+  GuildStatsDeathEntry,
+} from '../types/character'
 
 type CheerioRoot = ReturnType<typeof cheerio.load>
 
 const BASE_URL = 'https://www.tibia.com/community/?subtopic=characters&name='
 const ALL_ORIGINS = 'https://api.allorigins.win/raw?url='
 const JINA_PROXY = 'https://r.jina.ai/'
+
+const GUILDSTATS_BASE = 'https://guildstats.eu/character'
+const GUILDSTATS_HISTORY_URL = 'https://guildstats.eu/include/pagiationHistory_data.php'
+const GUILDSTATS_DEATH_URL = 'https://guildstats.eu/include/pagiationDeath_data.php'
+const GUILDSTATS_TIMEOUT = 15000
 
 const DIRECT_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Tibia Pulse)',
@@ -29,7 +42,10 @@ function shouldRetry(err: unknown) {
 async function fetchTibiaPage(url: string): Promise<string> {
   try {
     const { data } = await axios.get<string>(url, { headers: DIRECT_HEADERS, timeout: 8000 })
-    if (typeof data === 'string' && !data.includes('cf-error-details')) return data
+    if (typeof data === 'string' && !data.includes('cf-error-details')) {
+      console.info('[characters] tibia profile fetched via tibia.com')
+      return data
+    }
     console.warn('[characters] possible cloudflare challenge, retry via proxy', { url })
   } catch (err) {
     if (!shouldRetry(err)) throw err
@@ -43,7 +59,10 @@ async function fetchTibiaPage(url: string): Promise<string> {
     const { data } = await axios.get<string>(`${ALL_ORIGINS}${encodeURIComponent(url)}`, {
       timeout: 10000,
     })
-    if (typeof data === 'string' && data.trim()) return data
+    if (typeof data === 'string' && data.trim()) {
+      console.info('[characters] tibia profile fetched via allorigins proxy')
+      return data
+    }
   } catch (err) {
     console.warn('[characters] allorigins proxy failed', {
       url,
@@ -53,6 +72,7 @@ async function fetchTibiaPage(url: string): Promise<string> {
 
   const proxiedUrl = `${JINA_PROXY}${url}`
   const { data } = await axios.get<string>(proxiedUrl, { timeout: 15000 })
+  console.info('[characters] tibia profile fetched via jina proxy')
   return typeof data === 'string' ? data : String(data ?? '')
 }
 
@@ -70,6 +90,7 @@ export async function fetchCharacterProfile(name: string): Promise<CharacterSumm
   }
 
   const rawWorld = getFieldRaw($, 'World:')
+  const inlineFormerWorld = extractInlineValue(rawWorld, 'Former World')
   const world =
     getFieldPrimary($, 'World:') ??
     (rawWorld ? rawWorld.replace(/Former World:.*/i, '').trim() || undefined : undefined)
@@ -85,14 +106,14 @@ export async function fetchCharacterProfile(name: string): Promise<CharacterSumm
   const comment = getField($, 'Comment:')
   const formerNames = getField($, 'Former Names:')
   const rawTitle = getFieldRaw($, 'Title:')
-  const title = getFieldPrimary($, 'Title:') ?? (rawTitle ? rawTitle.replace(/Loyalty Title:.*/i, '').trim() : undefined)
+  const inlineLoyalty = extractInlineValue(rawTitle, 'Loyalty Title')
+  const title =
+    getFieldPrimary($, 'Title:') ??
+    (rawTitle ? rawTitle.replace(/Loyalty Title:.*/i, '').trim() || undefined : undefined)
   const loyaltyTitle = getField($, 'Loyalty Title:')
   const formerWorld =
     getField($, 'Former World:') ??
-    (() => {
-      const match = rawWorld?.match(/Former World:\s*(.+)$/i)
-      return match?.[1]?.trim()
-    })()
+    inlineFormerWorld
   const achievementPoints = Number(getField($, 'Achievement Points:')) || undefined
 
   const deaths: CharacterSummary['deaths'] = []
@@ -124,7 +145,8 @@ export async function fetchCharacterProfile(name: string): Promise<CharacterSumm
     house,
     comment,
     formerNames,
-    title: title || loyaltyTitle || undefined,
+    title: title || undefined,
+    loyaltyTitle: loyaltyTitle ?? inlineLoyalty ?? undefined,
     formerWorld,
     achievementPoints,
     deaths,
@@ -185,41 +207,387 @@ function getFieldPrimary($: CheerioRoot, label: string) {
   return next.text().trim() || undefined
 }
 
-export type GuildStatsSummary = {
-  currentXP: number
-  bestDay?: { date: string; value: number }
-  averageDaily?: number
-  history: CharacterExperienceHistory[]
+function extractInlineValue(raw: string | undefined, label: string) {
+  if (!raw) return undefined
+  const regexp = new RegExp(`${label}\\s*:?\\s*(.+)$`, 'i')
+  const match = raw.match(regexp)
+  return match?.[1]?.trim() || undefined
+}
+
+async function fetchGuildStatsTab(name: string, tab?: number | string): Promise<string> {
+  const query = [`nick=${encodeURIComponent(name)}`]
+  if (typeof tab !== 'undefined') query.push(`tab=${tab}`)
+  const url = `${GUILDSTATS_BASE}?${query.join('&')}`
+  try {
+    const { data } = await axios.get<string>(url, { timeout: GUILDSTATS_TIMEOUT })
+    return typeof data === 'string' ? data : ''
+  } catch (err) {
+    console.warn('[guildstats] tab fetch failed', {
+      name,
+      tab,
+      reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
+    })
+    return ''
+  }
+}
+
+function isGuildStatsNotFound(html: string) {
+  if (!html) return true
+  return /Sorry! Guild or character does not exsists/i.test(html)
+}
+
+function parseExperienceHistory(html: string): CharacterExperienceHistory[] {
+  if (!html) return []
+  const $ = cheerio.load(html)
+  const table = $('table')
+    .filter((_, el) => {
+      return (
+        $(el)
+          .find('th')
+          .map((__, th) => $(th).text().trim().toLowerCase())
+          .get()
+          .includes('exp change')
+      )
+    })
+    .first()
+
+  if (!table.length) return []
+
+  const entries: CharacterExperienceHistory[] = []
+  table.find('tr').each((_, row) => {
+    const cells = $(row).find('td')
+    if (cells.length < 5) return
+    const dateRaw = $(cells[0]).text().trim()
+    if (!dateRaw) return
+
+    const expChange = parseSignedInteger($(cells[1]).text()) ?? 0
+    const rankInfo = parseRankCell($(cells[2]))
+    const levelInfo = parseRankCell($(cells[3]))
+    const experience = parseInteger($(cells[4]).text())
+    const timeOnlineText = cells.length > 5 ? $(cells[5]).text().replace(/\s+/g, ' ').trim() : undefined
+    const timeOnlineMinutes = parseDurationToMinutes(timeOnlineText)
+    const averageExpPerHour = cells.length > 6 ? parseInteger($(cells[6]).text()) : undefined
+
+    entries.push({
+      date: normalizeGuildStatsDate(dateRaw) ?? dateRaw,
+      expChange,
+      level: levelInfo.value ?? 0,
+      vocationRank: rankInfo.value,
+      vocationRankDelta: rankInfo.delta,
+      experience,
+      timeOnlineText: timeOnlineText || undefined,
+      timeOnlineMinutes,
+      averageExpPerHour,
+    })
+  })
+
+  return entries
+}
+
+function parseBestDay(html: string) {
+  if (!html) return undefined
+  const $ = cheerio.load(html)
+  const table = $('table')
+    .filter((_, el) => {
+      const headers = $(el).find('th').map((__, th) => $(th).text().trim().toLowerCase()).get()
+      return headers.some((text) => text.includes('best') && text.includes('day'))
+    })
+    .first()
+
+  if (!table.length) return undefined
+  const row = table.find('tr').first()
+  const cells = row.find('td')
+  if (cells.length < 2) return undefined
+  const date = $(cells[0]).text().trim()
+  const value = parseSignedInteger($(cells[1]).text())
+  if (!date || typeof value === 'undefined') return undefined
+  return { date: normalizeGuildStatsDate(date) ?? date, value }
+}
+
+function parseAverageDaily(html: string) {
+  if (!html) return undefined
+  const $ = cheerio.load(html)
+  const raw = $('input[name="averageexp"]').attr('value') ?? $('input[name="averageexp"]').val()
+  if (typeof raw === 'number') return raw
+  if (typeof raw === 'string') {
+    const parsed = Number(raw.replace(/[^\d-]/g, ''))
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
+function parseTimeOnlineSummary(html: string): GuildStatsTimeOnlineSummary | undefined {
+  if (!html) return undefined
+  const $ = cheerio.load(html)
+  const table = $('table')
+    .filter((_, el) => {
+      const firstHeader = $(el).find('th').first().text().trim().toLowerCase()
+      return firstHeader.includes('last month')
+    })
+    .first()
+
+  if (!table.length) return undefined
+  const row = table.find('tr').filter((_, tr) => $(tr).find('td').length >= 3).first()
+  if (!row.length) return undefined
+
+  const cells = row.find('td')
+  const headerCells = table.find('thead th')
+  const weekdays: GuildStatsTimeOnlineSummary['weekdays'] = []
+  for (let i = 3; i < cells.length; i += 1) {
+    const headerLabel = headerCells.eq(i).text().trim()
+    const cell = cells.eq(i)
+    const raw = cell.text().replace(/\s+/g, ' ').trim()
+    weekdays.push({
+      label: headerLabel || `Day ${i - 2}`,
+      raw: raw || undefined,
+      durationMinutes: parseDurationToMinutes(raw),
+      doubleEvent: cell.html()?.includes('doubleEvent') ?? false,
+    })
+  }
+
+  const summary: GuildStatsTimeOnlineSummary = {
+    lastMonth: cells.eq(0).text().trim() || undefined,
+    currentMonth: cells.eq(1).text().trim() || undefined,
+    currentWeek: cells.eq(2).text().trim() || undefined,
+    weekdays: weekdays.length ? weekdays : undefined,
+  }
+
+  if (!summary.lastMonth && !summary.currentMonth && !summary.currentWeek && !summary.weekdays) {
+    return undefined
+  }
+  return summary
+}
+
+function parseHighscores(html: string): GuildStatsHighscoreEntry[] | undefined {
+  if (!html) return undefined
+  const $ = cheerio.load(html)
+  const table = $('table')
+    .filter((_, el) => {
+      const firstHeader = $(el).find('th').first().text().trim().toLowerCase()
+      return firstHeader === 'skill'
+    })
+    .first()
+
+  if (!table.length) return undefined
+  const entries: GuildStatsHighscoreEntry[] = []
+  table.find('tr').each((_, row) => {
+    const cells = $(row).find('td')
+    if (!cells.length) return
+    const skill = cells.eq(0).text().replace(/:\s*$/, '').trim()
+    if (!skill) return
+    const value = cells.eq(1).text().trim()
+    let position: number | undefined
+    let link: string | undefined
+    if (cells.length > 2) {
+      position = parseInteger(cells.eq(2).text())
+      link = absoluteGuildStatsUrl(cells.eq(2).find('a').attr('href'))
+    } else {
+      link = absoluteGuildStatsUrl(cells.eq(1).find('a').attr('href'))
+    }
+    entries.push({ skill, value, position, link })
+  })
+
+  return entries.length ? entries : undefined
+}
+
+function extractUidAndHistoryCounter(html: string) {
+  if (!html) return { uid: undefined, historyCounter: undefined }
+  const $ = cheerio.load(html)
+  const historyCounter = $('#historyCounter').attr('value') ?? undefined
+  const uidMatch = html.match(/UID=(\d+)/i)
+  const uid = uidMatch?.[1]
+  return { uid, historyCounter }
+}
+
+async function fetchGuildStatsLevelHistory(
+  uid: string,
+  historyCounter?: string,
+): Promise<GuildStatsLevelHistoryEntry[] | undefined> {
+  const params = new URLSearchParams({ UID: uid, page: '1' })
+  if (historyCounter) params.set('historyCounter', historyCounter)
+  const url = `${GUILDSTATS_HISTORY_URL}?${params.toString()}`
+  try {
+    const { data } = await axios.get<string>(url, { timeout: GUILDSTATS_TIMEOUT })
+    const html = typeof data === 'string' ? data : ''
+    const rows = parseLevelHistoryRows(html)
+    return rows.length ? rows : undefined
+  } catch (err) {
+    console.warn('[guildstats] level history request failed', {
+      uid,
+      reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
+    })
+    return undefined
+  }
+}
+
+function parseLevelHistoryRows(html: string): GuildStatsLevelHistoryEntry[] {
+  if (!html) return []
+  const $ = cheerio.load(html)
+  const entries: GuildStatsLevelHistoryEntry[] = []
+  $('table tr')
+    .filter((_, row) => $(row).find('td').length >= 4)
+    .each((_, row) => {
+      const cells = $(row).find('td')
+      const index = parseInteger(cells.eq(0).text()) ?? entries.length + 1
+      const whenRaw = cells.eq(1).text().trim()
+      const relative = cells.eq(2).text().trim() || undefined
+      const levelCell = cells.eq(3)
+      const level = parseInteger(levelCell.text()) ?? 0
+      const htmlContent = levelCell.html() ?? ''
+      let change: GuildStatsLevelHistoryEntry['change']
+      if (htmlContent.includes('fa-caret-up')) change = 'up'
+      else if (htmlContent.includes('fa-caret-down')) change = 'down'
+      else change = 'same'
+      entries.push({
+        index,
+        when: normalizeGuildStatsDateTime(whenRaw) ?? whenRaw,
+        relative,
+        level,
+        change,
+      })
+    })
+  return entries
+}
+
+async function fetchGuildStatsDeaths(uid: string): Promise<GuildStatsDeathEntry[] | undefined> {
+  const params = new URLSearchParams({ UID: uid, page: '1' })
+  const url = `${GUILDSTATS_DEATH_URL}?${params.toString()}`
+  try {
+    const { data } = await axios.get<string>(url, { timeout: GUILDSTATS_TIMEOUT })
+    const html = typeof data === 'string' ? data : ''
+    const entries = parseGuildStatsDeaths(html)
+    return entries.length ? entries : undefined
+  } catch (err) {
+    console.warn('[guildstats] death history request failed', {
+      uid,
+      reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
+    })
+    return undefined
+  }
+}
+
+function parseGuildStatsDeaths(html: string): GuildStatsDeathEntry[] {
+  if (!html) return []
+  const $ = cheerio.load(html)
+  const entries: GuildStatsDeathEntry[] = []
+  $('table tr')
+    .filter((_, row) => $(row).find('td').length >= 4)
+    .each((_, row) => {
+      const cells = $(row).find('td')
+      const index = parseInteger(cells.eq(0).text()) ?? entries.length + 1
+      const when = cells.eq(1).text().trim()
+      const killer = cells.eq(2).text().trim()
+      const level = parseInteger(cells.eq(3).text()) ?? 0
+      const expLost = cells.eq(4) ? parseSignedInteger(cells.eq(4).text()) : undefined
+      entries.push({
+        index,
+        when: normalizeGuildStatsDateTime(when) ?? when,
+        killer,
+        level,
+        expLost,
+      })
+    })
+  return entries
+}
+
+function parseRankCell(cell: cheerio.Cheerio) {
+  const clone = cell.clone()
+  clone.find('div').remove()
+  const value = parseInteger(clone.text())
+  const deltaText = cell.find('div').text()
+  const delta = parseSignedInteger(deltaText)
+  return { value, delta }
+}
+
+function parseDurationToMinutes(value?: string) {
+  if (!value) return undefined
+  const hoursMatch = value.match(/(\d+)\s*h/i)
+  const minutesMatch = value.match(/(\d+)\s*min/i)
+  const hours = hoursMatch ? Number(hoursMatch[1]) : 0
+  const minutes = minutesMatch ? Number(minutesMatch[1]) : 0
+  const total = hours * 60 + minutes
+  return total > 0 ? total : undefined
+}
+
+function parseInteger(value?: string | null) {
+  if (!value) return undefined
+  const cleaned = value.replace(/[^\d-]/g, '')
+  if (!cleaned) return undefined
+  const parsed = Number(cleaned)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function parseSignedInteger(value?: string | null) {
+  if (!value) return undefined
+  const cleaned = value.replace(/[^\d-]/g, '')
+  if (!cleaned) return undefined
+  const parsed = Number(cleaned)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function normalizeGuildStatsDate(value?: string) {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  const match = trimmed.match(/(\d{2})-(\d{2})-(\d{4})/)
+  if (!match) return undefined
+  return `${match[3]}-${match[2]}-${match[1]}`
+}
+
+function normalizeGuildStatsDateTime(value?: string) {
+  if (!value) return undefined
+  const match = value.trim().match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})/)
+  if (!match) return undefined
+  const [, dd, mm, yyyy, hh, min] = match
+  const date = new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min)))
+  if (Number.isNaN(date.getTime())) return undefined
+  return date.toISOString()
+}
+
+function absoluteGuildStatsUrl(href?: string) {
+  if (!href) return undefined
+  if (/^https?:\/\//i.test(href)) return href
+  try {
+    return new URL(href, 'https://guildstats.eu/').toString()
+  } catch {
+    return undefined
+  }
 }
 
 export async function fetchGuildStats(name: string): Promise<GuildStatsSummary | null> {
-  const url = `https://guildstats.eu/player/${encodeURIComponent(name)}`
-  const { data } = await axios.get<string>(url, { timeout: 15_000 })
-  const $ = cheerio.load(data)
+  const experienceHtml = await fetchGuildStatsTab(name, 9)
+  if (!experienceHtml || isGuildStatsNotFound(experienceHtml)) {
+    return null
+  }
 
-  const currentXP = Number($('#stat_current_xp').text().replace(/[^\d]/g, '')) || 0
-  if (!currentXP) return null
+  const [timeHtml, highscoreHtml, historyHtml] = await Promise.all([
+    fetchGuildStatsTab(name, 2).catch(() => ''),
+    fetchGuildStatsTab(name, 3).catch(() => ''),
+    fetchGuildStatsTab(name, 8).catch(() => ''),
+  ])
 
-  const bestDayValue = Number($('#stat_best_day').text().replace(/[^\d]/g, '')) || 0
-  const bestDayDate = $('#stat_best_day').closest('tr').find('td').eq(1).text().trim()
+  const history = parseExperienceHistory(experienceHtml)
+  const currentXP = history[0]?.experience
+  const bestDay = parseBestDay(experienceHtml)
+  const averageDaily = parseAverageDaily(experienceHtml)
 
-  const averageDaily = Number($('#stat_avg_daily').text().replace(/[^\d]/g, '')) || 0
+  const timeOnline = parseTimeOnlineSummary(timeHtml)
+  const highscores = parseHighscores(highscoreHtml)
 
-  const history: CharacterExperienceHistory[] = []
-  $('#expchart table tr').each((_, row) => {
-    const cells = $(row).find('td')
-    if (cells.length < 5) return
-    const date = $(cells[0]).text().trim()
-    const expChange = Number($(cells[1]).text().replace(/[^\d-]/g, '')) || 0
-    const levelChange = $(cells[2]).text().trim()
-    const level = Number(levelChange.replace(/\D/g, '')) || 0
-    history.push({ date, expChange, level })
-  })
+  const { uid, historyCounter } = extractUidAndHistoryCounter(historyHtml)
+  const [levelHistory, guildDeaths] = await Promise.all([
+    uid ? fetchGuildStatsLevelHistory(uid, historyCounter) : Promise.resolve<GuildStatsLevelHistoryEntry[] | undefined>(undefined),
+    uid ? fetchGuildStatsDeaths(uid) : Promise.resolve<GuildStatsDeathEntry[] | undefined>(undefined),
+  ])
 
   return {
     currentXP,
-    bestDay: bestDayValue ? { date: bestDayDate, value: bestDayValue } : undefined,
-    averageDaily: averageDaily || undefined,
+    bestDay,
+    averageDaily,
     history,
+    levelHistory,
+    timeOnline,
+    highscores,
+    guildDeaths,
   }
 }

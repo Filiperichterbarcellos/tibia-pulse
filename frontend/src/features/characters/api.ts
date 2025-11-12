@@ -10,6 +10,60 @@ export type CharacterExperienceEntry = {
   date: string
   expChange: number
   level: number
+  vocationRank?: number
+  vocationRankDelta?: number
+  experience?: number
+  timeOnlineText?: string
+  timeOnlineMinutes?: number
+  averageExpPerHour?: number
+}
+
+export type GuildStatsLevelHistoryEntry = {
+  index: number
+  when: string
+  relative?: string
+  level: number
+  change?: 'up' | 'down' | 'same'
+}
+
+export type GuildStatsTimeOnlineDay = {
+  label: string
+  raw?: string
+  durationMinutes?: number
+  doubleEvent?: boolean
+}
+
+export type GuildStatsTimeOnlineSummary = {
+  lastMonth?: string
+  currentMonth?: string
+  currentWeek?: string
+  weekdays?: GuildStatsTimeOnlineDay[]
+}
+
+export type GuildStatsHighscoreEntry = {
+  skill: string
+  value: string
+  position?: number
+  link?: string
+}
+
+export type GuildStatsDeathEntry = {
+  index: number
+  when: string
+  killer: string
+  level: number
+  expLost?: number
+}
+
+export type GuildStatsSummary = {
+  currentXP?: number
+  bestDay?: { date: string; value: number }
+  averageDaily?: number
+  history?: CharacterExperienceEntry[]
+  levelHistory?: GuildStatsLevelHistoryEntry[]
+  timeOnline?: GuildStatsTimeOnlineSummary
+  highscores?: GuildStatsHighscoreEntry[]
+  guildDeaths?: GuildStatsDeathEntry[]
 }
 
 export type CharacterSummary = {
@@ -27,6 +81,7 @@ export type CharacterSummary = {
   comment?: string
   formerNames?: string
   title?: string
+  loyaltyTitle?: string
   formerWorld?: string
   achievementPoints?: number
   currentXP?: number
@@ -34,6 +89,7 @@ export type CharacterSummary = {
   averageDailyXP?: number
   bestDayXP?: { date: string; value: number } | null
   history?: CharacterExperienceEntry[]
+  guildStats?: GuildStatsSummary
   deaths: DeathEntry[]
 }
 
@@ -48,10 +104,13 @@ export async function getCharacter(name: string): Promise<{ character: Character
     : Array.isArray(c?.deaths?.data) ? c.deaths.data
     : []
 
-  const history: CharacterExperienceEntry[] =
+  const historySource =
     Array.isArray(c?.history) ? c.history
     : Array.isArray(c?.history?.data) ? c.history.data
-    : []
+    : Array.isArray(c?.guildStats?.history) ? c.guildStats.history
+    : null
+
+  const history: CharacterExperienceEntry[] = historySource ?? []
 
   const character: CharacterSummary = {
     name: c?.name,
@@ -68,6 +127,7 @@ export async function getCharacter(name: string): Promise<{ character: Character
     comment: c?.comment,
     formerNames: c?.formerNames,
     title: c?.title,
+    loyaltyTitle: c?.loyaltyTitle,
     formerWorld: c?.formerWorld,
     achievementPoints: c?.achievementPoints ?? c?.achievement_points,
     currentXP: asNumber(c?.currentXP ?? c?.experience),
@@ -75,6 +135,7 @@ export async function getCharacter(name: string): Promise<{ character: Character
     averageDailyXP: asNumber(c?.averageDailyXP ?? c?.avg_daily_xp),
     bestDayXP: c?.bestDayXP ?? c?.best_day ?? null,
     history,
+    guildStats: c?.guildStats,
     deaths,
   }
 
