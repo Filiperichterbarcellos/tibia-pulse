@@ -2,12 +2,16 @@ import axios from 'axios'
 import type { Auction, Skills, StoreItem, HirelingInfo, CharmInfo, GemsInfo } from '../types/market'
 import type { BazaarFilters } from '../types/bazaar'
 
-const DEFAULT_BASE_URL = 'https://www.exevopan.com'
+const DEFAULT_BASE_URL = 'https://exevopan.com'
 const DEFAULT_ROUTE = '/api/auctions'
 const EXEVOPAN_BASE_URL = (process.env.EXEVOPAN_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/$/, '')
 const EXEVOPAN_AUCTIONS_ROUTE = process.env.EXEVOPAN_AUCTIONS_ROUTE ?? DEFAULT_ROUTE
 const EXEVOPAN_TIMEOUT = Number(process.env.EXEVOPAN_TIMEOUT ?? 12_000)
 const EXEVOPAN_PAGE_SIZE = Math.max(1, Number(process.env.EXEVOPAN_PAGE_SIZE ?? 12))
+const EXEVOPAN_HEADERS = {
+  'User-Agent': 'TibiaPulse/1.0 (+https://tibiapulse.com)',
+  Accept: 'application/json',
+}
 
 const VOCATION_NAMES: Record<number, string> = {
   0: 'None',
@@ -230,7 +234,10 @@ export async function fetchExevoPanAuctions(filters: BazaarFilters): Promise<Exe
   const url = `${EXEVOPAN_BASE_URL}${EXEVOPAN_AUCTIONS_ROUTE}${query ? `?${query}` : ''}`
 
   try {
-    const { data } = await axios.get<ExevoResponse>(url, { timeout: EXEVOPAN_TIMEOUT })
+    const { data } = await axios.get<ExevoResponse>(url, {
+      timeout: EXEVOPAN_TIMEOUT,
+      headers: EXEVOPAN_HEADERS,
+    })
     if (!data || !Array.isArray(data.page)) return null
     const auctions = data.page.map(toAuction)
     return { auctions, totalPages: deriveTotalPages(data) }
@@ -238,7 +245,7 @@ export async function fetchExevoPanAuctions(filters: BazaarFilters): Promise<Exe
     const reason = axios.isAxiosError(error)
       ? error.code ?? error.response?.status ?? error.message
       : String(error)
-    console.warn('[marketService] exevo pan fallback failed', { reason })
+    console.warn('[marketService] exevo pan fallback failed', { url, reason })
     return null
   }
 }
