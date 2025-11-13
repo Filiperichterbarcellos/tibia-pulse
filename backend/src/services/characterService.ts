@@ -20,6 +20,9 @@ const STATS_BASE = 'https://guildstats.eu/character'
 const STATS_HISTORY_URL = 'https://guildstats.eu/include/pagiationHistory_data.php'
 const STATS_DEATH_URL = 'https://guildstats.eu/include/pagiationDeath_data.php'
 const STATS_TIMEOUT = 15000
+const TRACKER_PROXY_BASE = process.env.TRACKER_PROXY_URL
+  ? process.env.TRACKER_PROXY_URL.trim().replace(/\/$/, '')
+  : undefined
 
 const DIRECT_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Tibia Pulse)',
@@ -222,40 +225,82 @@ function extractInlineValue(raw: string | undefined, label: string) {
   return match?.[1]?.trim() || undefined
 }
 
-async function fetchTrackerTab(name: string, tab?: number | string): Promise<string> {
-  const query = [`nick=${encodeURIComponent(name)}`]
-  if (typeof tab !== 'undefined') query.push(`tab=${tab}`)
-  const url = `${STATS_BASE}?${query.join('&')}`
+function buildTrackerProxyUrl(targetUrl: string) {
+  if (!TRACKER_PROXY_BASE) return null
+  const separator = TRACKER_PROXY_BASE.includes('?') ? '&' : '?'
+  return `${TRACKER_PROXY_BASE}${separator}url=${encodeURIComponent(targetUrl)}`
+}
 
-  const fetchers = [
-    () =>
-      axios.get<string>(url, {
+async function fetchTrackerHtml(targetUrl: string, context: string): Promise<string> {
+  type Attempt = { label: string; exec: () => Promise<string> }
+  const attempts: Attempt[] = []
+
+  const proxyUrl = buildTrackerProxyUrl(targetUrl)
+  if (proxyUrl) {
+    attempts.push({
+      label: 'proxy',
+      exec: async () => {
+        const { data } = await axios.get<string>(proxyUrl, { timeout: STATS_TIMEOUT })
+        return data ?? ''
+      },
+    })
+  }
+
+  attempts.push({
+    label: 'direct',
+    exec: async () => {
+      const { data } = await axios.get<string>(targetUrl, {
         timeout: STATS_TIMEOUT,
         headers: TRACKER_HEADERS,
-      }),
-    () =>
-      axios.get<string>(`${ALL_ORIGINS}${encodeURIComponent(url)}`, {
-        timeout: STATS_TIMEOUT,
-      }),
-    () =>
-      axios.get<string>(`${JINA_PROXY}${url}`, {
-        timeout: STATS_TIMEOUT,
-      }),
-  ]
+      })
+      return data ?? ''
+    },
+  })
 
-  for (const fetcher of fetchers) {
+  attempts.push({
+    label: 'allorigins',
+    exec: async () => {
+      const { data } = await axios.get<string>(`${ALL_ORIGINS}${encodeURIComponent(targetUrl)}`, {
+        timeout: STATS_TIMEOUT,
+      })
+      return data ?? ''
+    },
+  })
+
+  attempts.push({
+    label: 'jina',
+    exec: async () => {
+      const { data } = await axios.get<string>(`${JINA_PROXY}${targetUrl}`, {
+        timeout: STATS_TIMEOUT,
+      })
+      return data ?? ''
+    },
+  })
+
+  for (const attempt of attempts) {
     try {
-      const { data } = await fetcher()
-      if (typeof data === 'string' && data.trim()) {
-        return data
+      const html = await attempt.exec()
+      if (typeof html === 'string' && html.trim()) {
+        console.info(`[tracker] ${context} fetched via ${attempt.label}`)
+        return html
       }
     } catch (err) {
-      const reason = axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err)
-      console.warn('[guildstats] tab fetch failed', { name, tab, reason })
+      console.warn(`[tracker] ${context} request failed via ${attempt.label}`, {
+        url: targetUrl,
+        reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
+      })
     }
   }
 
   return ''
+}
+
+async function fetchTrackerTab(name: string, tab?: number | string): Promise<string> {
+  const query = [`nick=${encodeURIComponent(name)}`]
+  if (typeof tab !== 'undefined') query.push(`tab=${tab}`)
+  const url = `${STATS_BASE}?${query.join('&')}`
+  const tabLabel = typeof tab === 'undefined' ? 'default' : String(tab)
+  return fetchTrackerHtml(url, `tab-${tabLabel}:${name}`)
 }
 
 function isTrackerNotFound(html: string) {
@@ -433,30 +478,9 @@ async function fetchTrackerLevelHistory(
   const params = new URLSearchParams({ UID: uid, page: '1' })
   if (historyCounter) params.set('historyCounter', historyCounter)
   const url = `${STATS_HISTORY_URL}?${params.toString()}`
-  const sources = [
-    () =>
-      axios.get<string>(url, {
-        timeout: STATS_TIMEOUT,
-        headers: TRACKER_HEADERS,
-      }),
-    () =>
-      axios.get<string>(`${JINA_PROXY}${url}`, {
-        timeout: STATS_TIMEOUT,
-      }),
-  ]
-  for (const fetcher of sources) {
-    try {
-      const { data } = await fetcher()
-      const html = typeof data === 'string' ? data : ''
-      const rows = parseLevelHistoryRows(html)
-      if (rows.length) return rows
-    } catch (err) {
-      console.warn('[tracker] level history request failed', {
-        uid,
-        reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
-      })
-    }
-  }
+  const html = await fetchTrackerHtml(url, `level-history:${uid}`)
+  const rows = parseLevelHistoryRows(html)
+  if (rows.length) return rows
   return undefined
 }
 
@@ -492,37 +516,16 @@ function parseLevelHistoryRows(html: string): PulseStatsLevelHistoryEntry[] {
 async function fetchTrackerDeaths(uid: string): Promise<PulseStatsDeathEntry[] | undefined> {
   const params = new URLSearchParams({ UID: uid, page: '1' })
   const url = `${STATS_DEATH_URL}?${params.toString()}`
-  const sources = [
-    () =>
-      axios.get<string>(url, {
-        timeout: STATS_TIMEOUT,
-        headers: TRACKER_HEADERS,
-      }),
-    () =>
-      axios.get<string>(`${JINA_PROXY}${url}`, {
-        timeout: STATS_TIMEOUT,
-      }),
-  ]
-  for (const fetcher of sources) {
-    try {
-      const { data } = await fetcher()
-      const html = typeof data === 'string' ? data : ''
-      const entries = parseTrackerDeaths(html)
-      if (entries.length) return entries
-    } catch (err) {
-      console.warn('[tracker] death history request failed', {
-        uid,
-        reason: axios.isAxiosError(err) ? err.response?.status ?? err.code : String(err),
-      })
-    }
-  }
+  const html = await fetchTrackerHtml(url, `death-history:${uid}`)
+  const entries = parseTrackerDeaths(html)
+  if (entries.length) return entries
   return undefined
 }
 
 function parseTrackerDeaths(html: string): PulseStatsDeathEntry[] {
   if (!html) return []
   const $ = cheerio.load(html)
-      const entries: PulseStatsDeathEntry[] = []
+  const entries: PulseStatsDeathEntry[] = []
   $('table tr')
     .filter((_, row) => $(row).find('td').length >= 4)
     .each((_, row) => {
