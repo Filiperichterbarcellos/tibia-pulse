@@ -51,6 +51,34 @@ export default function CharacterDetails() {
   const highscores = trackerStats?.highscores ?? []
   const guildDeaths = trackerStats?.guildDeaths ?? []
   const deathsCount = data?.deaths?.length ?? 0
+  const generalDetails = useMemo(() => {
+    if (!data) return []
+    const items: Array<{ label: string; value: ReactNode }> = []
+    const push = (label: string, value?: ReactNode) => {
+      if (value === undefined || value === null) return
+      if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (!trimmed.length) return
+        items.push({ label, value: trimmed })
+        return
+      }
+      items.push({ label, value })
+    }
+
+    push('Residência', data.residence)
+    push('Guild', data.guild)
+    push('Sexo', data.sex)
+    if (data.created) push('Criado em', formatDate(data.created, true))
+    if (data.lastLogin) push('Último login', formatDate(data.lastLogin, false))
+    push('Casa', data.house)
+    push('Title', data.title)
+    push('Mundo anterior', data.formerWorld)
+    if (typeof data.achievementPoints === 'number') {
+      push('Achievement points', formatNumber(data.achievementPoints))
+    }
+    push('Former names', data.formerNames)
+    return items
+  }, [data])
 
   const tabs = useMemo(
     () => [
@@ -442,34 +470,26 @@ export default function CharacterDetails() {
               )}
             </section>
 
-            <section className="retro-panel space-y-4">
-              <h2 className="text-lg font-semibold text-slate-900">Detalhes gerais</h2>
-              <dl className="grid gap-3 sm:grid-cols-2">
-                <Detail label="Residência" value={data.residence} />
-                <Detail label="Guild" value={data.guild} />
-                <Detail label="Sexo" value={data.sex} />
-                <Detail label="Criado em" value={formatDate(data.created, true)} />
-                <Detail label="Último login" value={formatDate(data.lastLogin, false)} />
-                <Detail label="Casa" value={data.house} />
-                <Detail label="Title" value={data.title} />
-                <Detail label="Mundo anterior" value={data.formerWorld} />
-                <Detail
-                  label="Achievement points"
-                  value={
-                    typeof data.achievementPoints === 'number'
-                      ? formatNumber(data.achievementPoints)
-                      : undefined
-                  }
-                />
-                <Detail label="Former names" value={data.formerNames} />
-              </dl>
-              {data.comment && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="filter-label mb-1">Comentário</p>
-                  <p className="text-sm text-slate-800 whitespace-pre-line">{data.comment}</p>
-                </div>
-              )}
-            </section>
+            {(generalDetails.length > 0 || data.comment) && (
+              <section className="retro-panel space-y-4">
+                <h2 className="text-lg font-semibold text-slate-900">Detalhes gerais</h2>
+                {generalDetails.length ? (
+                  <dl className="grid gap-3 sm:grid-cols-2">
+                    {generalDetails.map((detail) => (
+                      <Detail key={detail.label} label={detail.label} value={detail.value} />
+                    ))}
+                  </dl>
+                ) : (
+                  <p className="text-sm text-slate-500">Sem informações adicionais.</p>
+                )}
+                {data.comment && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="filter-label mb-1">Comentário</p>
+                    <p className="text-sm text-slate-800 whitespace-pre-line">{data.comment}</p>
+                  </div>
+                )}
+              </section>
+            )}
           </div>
         )
     }
