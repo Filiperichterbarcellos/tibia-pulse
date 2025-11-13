@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { randomBytes } from 'crypto'
+import { createHmac } from 'crypto'
 import type { Response, Request } from 'express'
 import { AuthProvider } from '@prisma/client'
 import { prisma } from '../lib/prisma'
@@ -16,7 +16,7 @@ const DISCORD_AUTH_URL = 'https://discord.com/api/oauth2/authorize'
 const DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token'
 const DISCORD_PROFILE_URL = 'https://discord.com/api/users/@me'
 
-const stateStore = new Map<string, OAuthStateEntry>()
+const STATE_SECRET = process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET || 'tibia-pulse-oauth'
 
 const userSelect = {
   id: true,
@@ -53,20 +53,35 @@ function buildFailureRedirect(message?: string) {
   return url.toString()
 }
 
+function signState(payload: OAuthStateEntry) {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  const signature = createHmac('sha256', STATE_SECRET).update(encoded).digest('base64url')
+  return `${encoded}.${signature}`
+}
+
+function verifyState(value: string | undefined, provider: Provider) {
+  if (!value) return false
+  const [encoded, signature] = value.split('.')
+  if (!encoded || !signature) return false
+  const expected = createHmac('sha256', STATE_SECRET).update(encoded).digest('base64url')
+  if (signature !== expected) return false
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString()) as OAuthStateEntry
+    if (payload.provider !== provider) return false
+    if (payload.expiresAt < Date.now()) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
 function createState(provider: Provider) {
-  const value = randomBytes(24).toString('hex')
-  stateStore.set(value, { provider, expiresAt: Date.now() + STATE_TTL })
-  return value
+  const entry: OAuthStateEntry = { provider, expiresAt: Date.now() + STATE_TTL }
+  return signState(entry)
 }
 
 function consumeState(value: string | undefined, provider: Provider) {
-  if (!value) return false
-  const entry = stateStore.get(value)
-  if (!entry) return false
-  stateStore.delete(value)
-  if (entry.provider !== provider) return false
-  if (entry.expiresAt < Date.now()) return false
-  return true
+  return verifyState(value, provider)
 }
 
 function ensureEnv(name: string) {
