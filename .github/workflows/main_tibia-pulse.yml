@@ -63,4 +63,12 @@ jobs:
           app-name: 'tibia-pulse'
           slot-name: 'Production'
           package: backend
+
+      - name: Warm up backend cache
+        working-directory: backend
+        env:
+          API_WARMUP_URLS: "https://tibia-pulse-a4emczdth7h6gbcr.centralus-01.azurewebsites.net/api/characters/Kaamez,https://tibia-pulse-a4emczdth7h6gbcr.centralus-01.azurewebsites.net/api/characters/Dodaq"
+          API_WARMUP_DELAY: "5000"
+        run: |
+          npm run warmup || true
           

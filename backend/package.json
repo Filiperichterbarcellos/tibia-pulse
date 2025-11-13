@@ -15,7 +15,8 @@
     "test": "dotenv -e .env.test -- jest",
     "test:coverage": "dotenv -e .env.test -- jest --coverage",
     "test:unit": "dotenv -e .env.test -- jest --coverage --testPathIgnorePatterns='.*\\.int\\.spec\\.ts$'",
-    "test:int": "dotenv -e .env.test -- jest --coverage --testPathPattern='.*\\.int\\.spec\\.ts$'"
+    "test:int": "dotenv -e .env.test -- jest --coverage --testPathPattern='.*\\.int\\.spec\\.ts$'",
+    "warmup": "node scripts/warmup.mjs"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

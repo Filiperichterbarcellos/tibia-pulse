@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { TibiaDataClient } from '../services/tibiadata'
 import { fetchCharacterProfile, fetchPulseStats } from '../services/characterService'
-import type { CharacterSummary } from '../types/character'
+import type { CharacterSummary, PulseStatsSummary } from '../types/character'
 import { getCache, setCache } from '../utils/cache'
 
 const router = Router()
@@ -44,14 +44,14 @@ function calculateXpToNextLevel(level: number, currentXP: number) {
 
 function hasTrackerData(summary: CharacterSummary) {
   const tracker = summary.trackerStats
-  if (!tracker) return false
-  if (tracker.history && tracker.history.length) return true
-  if (tracker.levelHistory && tracker.levelHistory.length) return true
-  if (tracker.timeOnline) return true
-  if (tracker.highscores && tracker.highscores.length) return true
-  if (tracker.guildDeaths && tracker.guildDeaths.length) return true
-  if (typeof summary.averageDailyXP === 'number' || summary.bestDayXP) return true
+  if (trackerHasData(tracker)) return true
+  if (typeof summary.averageDailyXP === 'number') return true
+  if (summary.bestDayXP) return true
   return false
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function buildCharacterSummary(name: string): Promise<CharacterSummary> {
@@ -61,7 +61,7 @@ async function buildCharacterSummary(name: string): Promise<CharacterSummary> {
       return null
     }),
     fetchCharacterProfile(name),
-    fetchPulseStats(name).catch(() => null),
+    fetchTrackerStatsWithRetry(name),
   ])
 
   const c = tibiaData
@@ -110,6 +110,37 @@ async function buildCharacterSummary(name: string): Promise<CharacterSummary> {
     history: trackerStats?.history,
     trackerStats: trackerStats ?? undefined,
   }
+}
+
+async function fetchTrackerStatsWithRetry(name: string): Promise<PulseStatsSummary | null> {
+  const attempts = Number(process.env.TRACKER_ATTEMPTS ?? 3)
+  const baseDelay = Number(process.env.TRACKER_ATTEMPT_DELAY ?? 800)
+
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const stats = await fetchPulseStats(name)
+      if (trackerHasData(stats)) {
+        return stats
+      }
+    } catch (err) {
+      console.warn('[tracker] stats fetch failed', { name, attempt: i + 1, reason: err })
+    }
+    await sleep(baseDelay * (i + 1))
+  }
+  return null
+}
+
+function trackerHasData(stats?: PulseStatsSummary | null) {
+  if (!stats) return false
+  if (stats.history?.length) return true
+  if (stats.levelHistory?.length) return true
+  if (stats.timeOnline) return true
+  if (stats.highscores?.length) return true
+  if (stats.guildDeaths?.length) return true
+  if (typeof stats.averageDaily === 'number') return true
+  if (stats.bestDay) return true
+  if (typeof stats.currentXP === 'number') return true
+  return false
 }
 
 function emptyToUndefined(value?: string | null) {
