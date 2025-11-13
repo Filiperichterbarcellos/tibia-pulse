@@ -6,6 +6,9 @@ type User = {
   id: string
   email: string
   name?: string | null
+  mainCharacter?: string | null
+  avatarUrl?: string | null
+  createdAt?: string
 }
 
 type AuthState = {
@@ -13,6 +16,7 @@ type AuthState = {
   user: User | null
   status: 'idle' | 'loading' | 'ready'
   setSession: (session: { token: string; user: User }) => void
+  setUser: (user: User | null) => void
   hydrateProfile: () => Promise<void>
   logout: () => void
 }
@@ -45,6 +49,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     setAuthHeader(token)
     set({ token, user, status: 'ready' })
   },
+
+  setUser: (user) => set({ user }),
 
   hydrateProfile: async () => {
     const { token, status } = get()

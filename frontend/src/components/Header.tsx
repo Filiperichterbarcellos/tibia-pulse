@@ -34,20 +34,20 @@ export default function Header() {
 
         <div className="retro-header__actions">
           {token ? (
-            <button
-              className="retro-auth retro-auth--ghost"
-              onClick={() => {
-                logout()
-                navigate('/login')
-              }}
-            >
-              Sair
-            </button>
-          ) : (
             <>
-              <Link to="/login" className="retro-auth retro-auth--ghost">Entrar</Link>
-              <Link to="/register" className="retro-auth">Criar conta</Link>
+              <Link to="/account" className="retro-auth retro-auth--ghost">Minha conta</Link>
+              <button
+                className="retro-auth retro-auth--ghost"
+                onClick={() => {
+                  logout()
+                  navigate('/login')
+                }}
+              >
+                Sair
+              </button>
             </>
+          ) : (
+            <Link to="/login" className="retro-auth">Entrar</Link>
           )}
         </div>
       </div>

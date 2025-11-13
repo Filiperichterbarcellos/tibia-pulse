@@ -9,6 +9,9 @@ import Worlds from '@/pages/Worlds'
 import Calculator from '@/pages/Calculator'
 import Blog from '@/pages/Blog'
 import Post from '@/pages/Post'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import Account from '@/pages/Account'
+import AuthCallback from '@/pages/AuthCallback'
 
 export const router = createBrowserRouter([
   {
@@ -18,6 +21,7 @@ export const router = createBrowserRouter([
       { index: true, element: <CharacterSearch /> },
       { path: 'login', element: <Login /> },
       { path: 'register', element: <Register /> },
+      { path: 'auth/callback', element: <AuthCallback /> },
       { path: 'characters', element: <CharacterSearch /> },
       { path: 'characters/:name', element: <CharacterDetails /> },
       { path: 'bosses', element: <Bosses /> },
@@ -25,6 +29,10 @@ export const router = createBrowserRouter([
       { path: 'calculator', element: <Calculator /> },
       { path: 'blog', element: <Blog /> },
       { path: 'blog/:slug', element: <Post /> },
+      {
+        element: <ProtectedRoute />,
+        children: [{ path: 'account', element: <Account /> }],
+      },
     ],
   },
 ])

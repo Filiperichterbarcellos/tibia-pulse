@@ -33,7 +33,7 @@ export const AuthController = {
 
     const user = await prisma.user.create({
       data: { email, name, password: hash },
-      select: { id: true, email: true, name: true, createdAt: true },
+      select: { id: true, email: true, name: true, mainCharacter: true, avatarUrl: true, createdAt: true },
     })
 
     const token = signToken({ id: user.id, email: user.email })
@@ -50,7 +50,9 @@ export const AuthController = {
 
     // ⚠️ sem select: precisamos do hash
     const user = await prisma.user.findUnique({ where: { email } })
-    if (!user) return res.status(401).json({ error: 'Credenciais inválidas' })
+    if (!user || !user.password) {
+      return res.status(401).json({ error: 'Credenciais inválidas' })
+    }
 
     const ok = await bcrypt.compare(password, user.password)
     if (!ok) return res.status(401).json({ error: 'Credenciais inválidas' })
@@ -59,6 +61,8 @@ export const AuthController = {
       id: user.id,
       email: user.email,
       name: user.name,
+      mainCharacter: user.mainCharacter,
+      avatarUrl: user.avatarUrl,
       createdAt: user.createdAt,
     }
 
@@ -71,7 +75,7 @@ export const AuthController = {
 
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, email: true, name: true, createdAt: true },
+      select: { id: true, email: true, name: true, mainCharacter: true, avatarUrl: true, createdAt: true },
     })
 
     return res.json({ user })

@@ -5,14 +5,14 @@ const PROD_BASE_URL = 'https://tibia-pulse-a4emczdth7h6gbcr.centralus-01.azurewe
 
 const DEFAULT_BASE_URL = import.meta.env.DEV ? 'http://localhost:3000' : PROD_BASE_URL
 
-const baseURL = (
+export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
   DEFAULT_BASE_URL
 ).replace(/\/$/, '')
 
 export const apiClient = axios.create({
-  baseURL,
+  baseURL: API_BASE_URL,
   timeout: 15000,
 })
 

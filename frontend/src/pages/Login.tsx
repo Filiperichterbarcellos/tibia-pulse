@@ -1,86 +1,77 @@
-// src/pages/Login.tsx
-import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { login } from '@/features/auth/api'
-import { useAuthStore } from '@/features/auth/useAuthStore'
+import { useMemo } from 'react'
+import { useLocation } from 'react-router-dom'
+import { API_BASE_URL } from '@/lib/apiClient'
 
-type LocationState = { from?: string }
+type Props = { variant?: 'login' | 'register' }
 
-export default function Login() {
-  const nav = useNavigate()
+const PROVIDERS = [
+  {
+    id: 'google',
+    label: 'Continuar com Google',
+    helper: 'Usa somente seu nome e e-mail do Google.',
+  },
+  {
+    id: 'discord',
+    label: 'Continuar com Discord',
+    helper: 'Ideal para quem coordena hunts e squads.',
+  },
+]
+
+const ERROR_MESSAGES: Record<string, string> = {
+  'config-error': 'Configuração ausente. Avise o administrador.',
+  'invalid-state': 'Sessão expirada. Tente novamente.',
+  'google-auth-failed': 'Não foi possível autenticar com o Google.',
+  'discord-auth-failed': 'Não foi possível autenticar com o Discord.',
+}
+
+export default function Login({ variant = 'login' }: Props) {
   const location = useLocation()
-  const setSession = useAuthStore((s) => s.setSession)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const redirectTo = (location.state as LocationState)?.from || '/'
+  const errorParam = useMemo(() => new URLSearchParams(location.search).get('error'), [location.search])
+  const errorMessage = errorParam ? ERROR_MESSAGES[errorParam] || 'Não foi possível iniciar sua sessão.' : null
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await login({ email, password })
-      if (!data?.token) {
-        setError('Credenciais inválidas.')
-        return
-      }
-      setSession({ token: data.token, user: data.user })
-      nav(redirectTo, { replace: true })
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Erro ao entrar.')
-    } finally {
-      setLoading(false)
-    }
+  const title = variant === 'login' ? 'Entrar no Tibia Pulse' : 'Crie sua conta gratuita'
+  const subtitle =
+    variant === 'login'
+      ? 'Escolha seu provedor favorito. Não pedimos senha nem confirmação por e-mail.'
+      : 'A conta é criada automaticamente, basta autenticar com Google ou Discord.'
+
+  const startOAuth = (provider: string) => {
+    window.location.href = `${API_BASE_URL}/api/auth/${provider}`
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl">
-        <h1 className="text-2xl font-semibold text-white">Bem-vindo de volta</h1>
-        <p className="text-sm text-white/60">Entre para salvar personagens favoritos no bazar.</p>
+    <div className="mx-auto flex min-h-[60vh] max-w-2xl flex-col gap-6 px-4 py-12">
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-xl backdrop-blur">
+        <h1 className="text-3xl font-bold text-white">{title}</h1>
+        <p className="mt-2 text-sm text-white/60">{subtitle}</p>
 
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
-          <label className="block text-sm">
-            <span className="mb-1 inline-block text-white/70">E-mail</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-emerald-500"
-              required
-            />
-          </label>
+        <div className="mt-8 space-y-4">
+          {PROVIDERS.map((provider) => (
+            <button
+              key={provider.id}
+              type="button"
+              className="flex w-full flex-col rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-left transition hover:border-emerald-400/60"
+              onClick={() => startOAuth(provider.id)}
+            >
+              <span className="text-base font-semibold text-white">{provider.label}</span>
+              <span className="text-xs text-white/60">{provider.helper}</span>
+            </button>
+          ))}
+        </div>
 
-          <label className="block text-sm">
-            <span className="mb-1 inline-block text-white/70">Senha</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-emerald-500"
-              required
-            />
-          </label>
+        {errorMessage && (
+          <div className="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+            {errorMessage}
+          </div>
+        )}
 
-          {error && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div>}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:opacity-50"
-          >
-            {loading ? 'Entrando…' : 'Entrar'}
-          </button>
-        </form>
-
-        <p className="mt-4 text-center text-sm text-white/60">
-          Não tem conta?{' '}
-          <Link to="/register" className="text-emerald-300 underline">
-            Criar agora
-          </Link>
-        </p>
+        <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-white/60">
+          <p className="font-semibold text-white">Como usamos seus dados?</p>
+          <p>
+            Apenas lemos nome, e-mail e avatar fornecidos pelo Google ou Discord para identificar você no Tibia Pulse.
+            Você pode remover o acesso a qualquer momento diretamente no provedor.
+          </p>
+        </div>
       </div>
     </div>
   )

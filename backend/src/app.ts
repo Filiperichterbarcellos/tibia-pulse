@@ -7,6 +7,7 @@ import { swaggerSpec } from './swagger'
 import routes from './routes'
 import authRoutes from './routes/auth.routes'
 import favoriteRoutes from './routes/favorites.routes'
+import profileRoutes from './routes/profile.routes'
 
 // ⬇️ use os nomes dos arquivos que você já tem
 import bossesRoutes from './routes/bosses'
@@ -27,6 +28,7 @@ app.use('/api', routes)
 
 app.use('/api/auth', authRoutes)
 app.use('/api/favorites', favoriteRoutes)
+app.use('/api/profile', profileRoutes)
 
 // ⬇️ monta as rotas novas
 app.use('/api/worlds', worldsRoutes)

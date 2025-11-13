@@ -16,13 +16,24 @@ enum FavoriteType {
   BOSS
 }
 
+enum AuthProvider {
+  GOOGLE
+  DISCORD
+}
+
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  name      String?
-  password  String     // hash com bcrypt
-  favorites Favorite[] // relação
-  createdAt DateTime   @default(now())
+  id                 String       @id @default(cuid())
+  email              String?      @unique
+  name               String?
+  mainCharacter      String?
+  password           String?
+  avatarUrl          String?
+  provider           AuthProvider?
+  providerAccountId  String?
+  favorites          Favorite[]   // relação
+  createdAt          DateTime     @default(now())
+
+  @@unique([provider, providerAccountId])
 }
 
 model Favorite {

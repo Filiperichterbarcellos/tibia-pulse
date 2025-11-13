@@ -13,19 +13,7 @@ router.get('/:name', async (req: Request, res: Response) => {
     const name = String(req.params.name || '').trim()
     if (!name) return res.status(400).type('application/json').json({ error: 'missing name' })
 
-    const cacheKey = `character:${name.toLowerCase()}`
-    const cached = getCache<CharacterSummary>(cacheKey)
-    if (cached) {
-      return res.type('application/json').json(cached)
-    }
-
-    const summary = await buildCharacterSummary(name)
-    if (hasTrackerData(summary)) {
-      setCache(cacheKey, summary, CHARACTER_CACHE_TTL)
-    } else {
-      // guarda só por alguns segundos para evitar avalanche, mas reprocessa logo
-      setCache(cacheKey, summary, Math.min(CHARACTER_CACHE_TTL, 10_000))
-    }
+    const summary = await resolveCharacterSummary(name)
     return res.type('application/json').json(summary)
   } catch (e) {
     if ((e as any)?.code === 404 || (e as any)?.message === 'not-found') {
@@ -52,6 +40,20 @@ function hasTrackerData(summary: CharacterSummary) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export async function resolveCharacterSummary(name: string): Promise<CharacterSummary> {
+  const cacheKey = `character:${name.toLowerCase()}`
+  const cached = getCache<CharacterSummary>(cacheKey)
+  if (cached) return cached
+
+  const summary = await buildCharacterSummary(name)
+  if (hasTrackerData(summary)) {
+    setCache(cacheKey, summary, CHARACTER_CACHE_TTL)
+  } else {
+    setCache(cacheKey, summary, Math.min(CHARACTER_CACHE_TTL, 10_000))
+  }
+  return summary
 }
 
 async function buildCharacterSummary(name: string): Promise<CharacterSummary> {
