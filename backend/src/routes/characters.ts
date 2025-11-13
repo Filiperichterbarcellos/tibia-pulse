@@ -20,7 +20,12 @@ router.get('/:name', async (req: Request, res: Response) => {
     }
 
     const summary = await buildCharacterSummary(name)
-    setCache(cacheKey, summary, CHARACTER_CACHE_TTL)
+    if (hasTrackerData(summary)) {
+      setCache(cacheKey, summary, CHARACTER_CACHE_TTL)
+    } else {
+      // guarda só por alguns segundos para evitar avalanche, mas reprocessa logo
+      setCache(cacheKey, summary, Math.min(CHARACTER_CACHE_TTL, 10_000))
+    }
     return res.type('application/json').json(summary)
   } catch (e) {
     if ((e as any)?.code === 404 || (e as any)?.message === 'not-found') {
@@ -35,6 +40,18 @@ function calculateXpToNextLevel(level: number, currentXP: number) {
   const nextLevel = level + 1
   const xpForNext = Math.floor(50 * (nextLevel ** 3 - 6 * nextLevel ** 2 + 17 * nextLevel - 12) / 3)
   return Math.max(0, xpForNext - currentXP)
+}
+
+function hasTrackerData(summary: CharacterSummary) {
+  const tracker = summary.trackerStats
+  if (!tracker) return false
+  if (tracker.history && tracker.history.length) return true
+  if (tracker.levelHistory && tracker.levelHistory.length) return true
+  if (tracker.timeOnline) return true
+  if (tracker.highscores && tracker.highscores.length) return true
+  if (tracker.guildDeaths && tracker.guildDeaths.length) return true
+  if (typeof summary.averageDailyXP === 'number' || summary.bestDayXP) return true
+  return false
 }
 
 async function buildCharacterSummary(name: string): Promise<CharacterSummary> {
