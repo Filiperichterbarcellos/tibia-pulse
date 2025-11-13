@@ -367,7 +367,10 @@ function parseBestDay(html: string) {
     .first()
 
   if (!table.length) return undefined
-  const row = table.find('tr').first()
+  const row = table
+    .find('tr')
+    .filter((_, tr) => $(tr).find('td').length >= 2)
+    .first()
   const cells = row.find('td')
   if (cells.length < 2) return undefined
   const date = $(cells[0]).text().trim()
