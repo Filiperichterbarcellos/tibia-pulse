@@ -11,10 +11,10 @@
     "prisma:generate": "node ./node_modules/prisma/build/index.js generate",
     "start": "npm run prisma:generate && node -r tsconfig-paths/register dist/server.js",
     "typecheck": "tsc --noEmit",
-    "pretest": "dotenv -e .env.test -- npx prisma migrate deploy || dotenv -e .env.test -- npx prisma db push",
+    "pretest": "node ./scripts/pretest.js",
     "test": "dotenv -e .env.test -- jest",
     "test:coverage": "dotenv -e .env.test -- jest --coverage",
-    "test:unit": "dotenv -e .env.test -- jest --coverage --testPathIgnorePatterns='.*\\.int\\.spec\\.ts$'",
+    "test:unit": "SKIP_DB_MIGRATIONS=1 dotenv -e .env.test -- jest --coverage --testPathIgnorePatterns='.*\\.int\\.spec\\.ts$'",
     "test:int": "dotenv -e .env.test -- jest --coverage --testPathPattern='.*\\.int\\.spec\\.ts$'",
     "warmup": "node scripts/warmup.mjs"
   },

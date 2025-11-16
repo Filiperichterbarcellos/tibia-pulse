@@ -29,7 +29,12 @@ async function ensureFavoriteSnapshotColumn() {
       await prisma.$executeRawUnsafe('ALTER TABLE "Favorite" ADD COLUMN "snapshot" JSONB')
       console.info('[prisma] coluna Favorite.snapshot criada automaticamente')
     }
-  } catch (err) {
+  } catch (err: any) {
+    const msg = typeof err?.message === 'string' ? err.message : ''
+    if (msg.includes("Can't reach database server")) {
+      console.warn('[prisma] snapshot check ignorado (sem conexão com o banco)')
+      return
+    }
     console.error('[prisma] não foi possível garantir Favorite.snapshot', err)
   }
 }
