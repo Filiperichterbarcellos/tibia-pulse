@@ -258,9 +258,9 @@ export default function Account() {
 
 function AccountDetail({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-      <p className="text-xs uppercase tracking-wide text-white/60">{label}</p>
-      <p className="text-sm font-medium text-white">{value ?? '—'}</p>
+    <div className="rounded-2xl border border-[#dfe3ff] bg-white px-3 py-2">
+      <p className="text-xs uppercase tracking-wide text-[#8a8ebf]">{label}</p>
+      <p className="text-sm font-medium text-[#1b1f3b]">{value ?? '—'}</p>
     </div>
   )
 }

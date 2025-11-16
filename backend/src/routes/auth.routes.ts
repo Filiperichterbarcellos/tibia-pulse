@@ -11,7 +11,5 @@ router.get('/me', requireAuth, AuthController.me)
 
 router.get('/google', OAuthController.googleStart)
 router.get('/google/callback', OAuthController.googleCallback)
-router.get('/discord', OAuthController.discordStart)
-router.get('/discord/callback', OAuthController.discordCallback)
 
 export default router

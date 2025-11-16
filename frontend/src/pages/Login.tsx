@@ -10,18 +10,12 @@ const PROVIDERS = [
     label: 'Continuar com Google',
     helper: 'Usa somente seu nome e e-mail do Google.',
   },
-  {
-    id: 'discord',
-    label: 'Continuar com Discord',
-    helper: 'Ideal para quem coordena hunts e squads.',
-  },
 ]
 
 const ERROR_MESSAGES: Record<string, string> = {
   'config-error': 'Configuração ausente. Avise o administrador.',
   'invalid-state': 'Sessão expirada. Tente novamente.',
   'google-auth-failed': 'Não foi possível autenticar com o Google.',
-  'discord-auth-failed': 'Não foi possível autenticar com o Discord.',
 }
 
 export default function Login({ variant = 'login' }: Props) {
@@ -32,8 +26,8 @@ export default function Login({ variant = 'login' }: Props) {
   const title = variant === 'login' ? 'Entrar no Tibia Pulse' : 'Crie sua conta gratuita'
   const subtitle =
     variant === 'login'
-      ? 'Escolha seu provedor favorito. Não pedimos senha nem confirmação por e-mail.'
-      : 'A conta é criada automaticamente, basta autenticar com Google ou Discord.'
+      ? 'Acesse com sua conta Google. Não pedimos senha nem confirmação por e-mail.'
+      : 'A conta é criada automaticamente ao autenticar com o Google.'
 
   const startOAuth = (provider: string) => {
     window.location.href = `${API_BASE_URL}/api/auth/${provider}`

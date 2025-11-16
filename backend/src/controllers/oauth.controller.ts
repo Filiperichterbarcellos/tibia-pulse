@@ -5,16 +5,13 @@ import { AuthProvider } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { signToken } from '../utils/jwt'
 
-type Provider = 'google' | 'discord'
+type Provider = 'google'
 type OAuthStateEntry = { provider: Provider; expiresAt: number }
 
 const STATE_TTL = 5 * 60 * 1000
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_PROFILE_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
-const DISCORD_AUTH_URL = 'https://discord.com/api/oauth2/authorize'
-const DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token'
-const DISCORD_PROFILE_URL = 'https://discord.com/api/users/@me'
 
 const STATE_SECRET = process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET || 'tibia-pulse-oauth'
 
@@ -102,7 +99,7 @@ async function syncOAuthUser(
   providerAccountId: string,
   profile: { email?: string | null; name?: string | null; avatarUrl?: string | null },
 ) {
-  const prismaProvider = provider === 'google' ? AuthProvider.GOOGLE : AuthProvider.DISCORD
+  const prismaProvider = AuthProvider.GOOGLE
   const whereProvider = {
     provider_providerAccountId: {
       provider: prismaProvider,
@@ -228,70 +225,6 @@ export const OAuthController = {
     } catch (err) {
       console.error('[oauth] google callback failed', err)
       return res.redirect(buildFailureRedirect('google-auth-failed'))
-    }
-  },
-
-  discordStart: (_req: Request, res: Response) => {
-    try {
-      const clientId = ensureEnv('DISCORD_CLIENT_ID')
-      const redirectUri = ensureEnv('DISCORD_REDIRECT_URI')
-      const state = createState('discord')
-      const params = new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: 'code',
-        scope: 'identify email',
-        prompt: 'consent',
-        state,
-      })
-      return res.redirect(`${DISCORD_AUTH_URL}?${params.toString()}`)
-    } catch (err) {
-      console.error('[oauth] discord start failed', err)
-      return res.redirect(buildFailureRedirect('config-error'))
-    }
-  },
-
-  discordCallback: async (req: Request, res: Response) => {
-    try {
-      const { code, state } = req.query
-      if (!code || typeof code !== 'string' || !consumeState(state as string, 'discord')) {
-        return res.redirect(buildFailureRedirect('invalid-state'))
-      }
-      const clientId = ensureEnv('DISCORD_CLIENT_ID')
-      const clientSecret = ensureEnv('DISCORD_CLIENT_SECRET')
-      const redirectUri = ensureEnv('DISCORD_REDIRECT_URI')
-      const tokenPayload = new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      })
-      const tokenRes = await axios.post(DISCORD_TOKEN_URL, tokenPayload.toString(), {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      })
-      const accessToken = tokenRes.data?.access_token
-      if (!accessToken) throw new Error('missing access token')
-
-      const profileRes = await axios.get(DISCORD_PROFILE_URL, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      const profile = profileRes.data
-      if (!profile?.id) throw new Error('missing discord id')
-      const avatarUrl =
-        profile.avatar && profile.id
-          ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png?size=256`
-          : null
-      const displayName = profile.global_name || profile.username || profile.id
-
-      return finalizeAuth(res, 'discord', String(profile.id), {
-        email: profile.email,
-        name: displayName,
-        avatarUrl: avatarUrl ?? undefined,
-      })
-    } catch (err) {
-      console.error('[oauth] discord callback failed', err)
-      return res.redirect(buildFailureRedirect('discord-auth-failed'))
     }
   },
 }
