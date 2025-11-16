@@ -290,18 +290,18 @@ function CharacterCard({ character }: { character: CharacterSummary }) {
   const timeOnline = character.trackerStats?.timeOnline
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white">
+    <div className="rounded-2xl border border-[#dfe3ff] bg-white p-4 text-[#1b1f3b] shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-white/60">Personagem</p>
-          <h3 className="text-2xl font-bold">{character.name}</h3>
-          <p className="text-sm text-white/70">
+          <p className="text-xs uppercase tracking-wide text-[#6d71a2]">Personagem</p>
+          <h3 className="text-2xl font-bold text-[#251c7a]">{character.name}</h3>
+          <p className="text-sm text-[#6d71a2]">
             {character.vocation ?? '—'} • {character.world ?? '—'}
           </p>
         </div>
         <div className="text-right">
-          <p className="text-xs uppercase tracking-wide text-white/60">Level</p>
-          <p className="text-3xl font-bold text-emerald-300">{character.level}</p>
+          <p className="text-xs uppercase tracking-wide text-[#6d71a2]">Level</p>
+          <p className="text-3xl font-bold text-emerald-600">{character.level}</p>
         </div>
       </div>
 
@@ -315,8 +315,8 @@ function CharacterCard({ character }: { character: CharacterSummary }) {
       </dl>
 
       {timeOnline && (
-        <div className="mt-4 rounded-2xl border border-white/5 bg-black/20 p-3 text-sm text-white/80">
-          <p className="text-xs uppercase tracking-wide text-white/60 mb-1">Tempo online (rastreador)</p>
+        <div className="mt-4 rounded-2xl border border-[#dfe3ff] bg-[#f7f8ff] p-3 text-sm text-[#1b1f3b]">
+          <p className="mb-1 text-xs uppercase tracking-wide text-[#6d71a2]">Tempo online (rastreador)</p>
           <div className="grid gap-2 sm:grid-cols-3">
             <MiniStat label="Último mês" value={timeOnline.lastMonth ?? '—'} />
             <MiniStat label="Mês atual" value={timeOnline.currentMonth ?? '—'} />
@@ -330,9 +330,9 @@ function CharacterCard({ character }: { character: CharacterSummary }) {
 
 function MiniStat({ label, value }: { label: string; value?: string | number | null }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-      <p className="text-xs uppercase tracking-wide text-white/50">{label}</p>
-      <p className="text-sm font-semibold text-white">{value ?? '—'}</p>
+    <div className="rounded-xl border border-[#e3e5ff] bg-[#f5f6ff] px-3 py-2">
+      <p className="text-xs uppercase tracking-wide text-[#8a8ebf]">{label}</p>
+      <p className="text-sm font-semibold text-[#1b1f3b]">{value ?? '—'}</p>
     </div>
   )
 }
@@ -345,7 +345,7 @@ function FavoriteBossRow({
   onRemove: () => void
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#dfe3ff] bg-white px-3 py-2 text-[#1b1f3b]">
       <div className="flex flex-1 items-center gap-3">
         {favorite.snapshot?.sprite && (
           <img
@@ -353,15 +353,15 @@ function FavoriteBossRow({
             alt=""
             width={40}
             height={40}
-            className="rounded-full border border-white/20 bg-black/20"
+            className="rounded-full border border-[#dfe3ff] bg-[#f5f6ff]"
           />
         )}
         <div>
-          <p className="font-semibold text-white">{favorite.snapshot?.name ?? favorite.key}</p>
+          <p className="font-semibold text-[#1b1f3b]">{favorite.snapshot?.name ?? favorite.key}</p>
           {favorite.snapshot?.respawn && (
-            <p className="text-xs text-white/60">Respawn: {favorite.snapshot.respawn}</p>
+            <p className="text-xs text-[#6d71a2]">Respawn: {favorite.snapshot.respawn}</p>
           )}
-          <p className="text-xs text-white/40">
+          <p className="text-xs text-[#9498c4]">
             Salvo em {fmtDateTime(favorite.createdAt)}
           </p>
         </div>
