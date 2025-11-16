@@ -26,7 +26,7 @@ export default function Login({ variant = 'login' }: Props) {
   const title = variant === 'login' ? 'Entre com estilo retrô' : 'Crie sua conta gratuita'
   const subtitle =
     variant === 'login'
-      ? 'Use sua conta Google para desbloquear os painéis personalizados, favoritos e rastreamento avançado.'
+      ? 'Use sua conta Google para salvar favoritos e aproveitar o rastreador completo no Tibia Pulse.'
       : 'A conta é criada automaticamente ao autenticar com o Google.'
 
   const startOAuth = (provider: string) => {
@@ -41,7 +41,7 @@ export default function Login({ variant = 'login' }: Props) {
           <h1>{title}</h1>
           <p>{subtitle}</p>
           <ul className="retro-hero__box mt-6 text-white/90">
-            <li>Favoritos sincronizados entre desktop e mobile</li>
+            <li>Favoritos sincronizados entre dispositivos</li>
             <li>Monitoramento rápido do seu personagem principal</li>
             <li>Integração direta com nosso rastreador de bosses</li>
           </ul>
