@@ -12,3 +12,26 @@ export const prisma =
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+
+async function ensureFavoriteSnapshotColumn() {
+  try {
+    const result = await prisma.$queryRaw<{ exists: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND lower(table_name) = 'favorite'
+          AND column_name = 'snapshot'
+      ) as "exists"
+    `
+    const hasColumn = result?.[0]?.exists
+    if (!hasColumn) {
+      await prisma.$executeRawUnsafe('ALTER TABLE "Favorite" ADD COLUMN "snapshot" JSONB')
+      console.info('[prisma] coluna Favorite.snapshot criada automaticamente')
+    }
+  } catch (err) {
+    console.error('[prisma] não foi possível garantir Favorite.snapshot', err)
+  }
+}
+
+void ensureFavoriteSnapshotColumn()

@@ -140,6 +140,100 @@
   margin-bottom: 0.4rem;
 }
 
+.retro-login-wrapper {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 3rem 1rem 4rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.retro-hero--login {
+  background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.12), transparent 55%),
+    linear-gradient(135deg, #7d2df6, #ff6b9f);
+  color: #f6f5ff;
+  border: none;
+  box-shadow: 0 35px 70px rgba(86, 54, 148, 0.25);
+}
+
+.retro-hero--login h1 {
+  color: #fff;
+}
+
+.retro-hero--login p {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.retro-login-panel {
+  background: #ffffff;
+  border-color: #dfe3ff;
+  box-shadow: 0 25px 60px rgba(28, 18, 60, 0.15);
+  border-radius: 28px;
+  padding: 2rem;
+}
+
+.retro-login-button {
+  width: 100%;
+  border-radius: 24px;
+  border: 1.5px solid #dfe3ff;
+  background: linear-gradient(120deg, rgba(99, 102, 241, 0.08), rgba(255, 255, 255, 0.9));
+  padding: 1rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  color: #191a3b;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.retro-login-button p {
+  font-size: 0.85rem;
+  color: #6b6ea6;
+  margin-top: 0.15rem;
+  font-weight: 400;
+}
+
+.retro-login-button svg {
+  width: 26px;
+  height: 26px;
+  color: #7c3aed;
+  flex-shrink: 0;
+}
+
+.retro-login-button:hover {
+  border-color: #7c3aed;
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(124, 58, 237, 0.25);
+}
+
+.retro-login-alert {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  background: rgba(244, 63, 94, 0.15);
+  color: #8b1b3c;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.retro-login-info {
+  margin-top: 1.75rem;
+  padding: 1rem 1.25rem;
+  border-radius: 20px;
+  border: 1px dashed #dfe3ff;
+  background: rgba(99, 102, 241, 0.05);
+  font-size: 0.85rem;
+  color: #4d4f81;
+}
+
+.retro-login-info p {
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
 .filter-chip-row {
   display: flex;
   flex-wrap: wrap;
