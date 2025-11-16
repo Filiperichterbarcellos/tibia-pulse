@@ -14,7 +14,8 @@ type BossFavoriteSnapshot = {
 type BossFavorite = FavoriteRecord<BossFavoriteSnapshot>
 
 export default function Account() {
-  const { user, setUser } = useAuthStore((s) => ({ user: s.user, setUser: s.setUser }))
+  const user = useAuthStore((s) => s.user)
+  const setUser = useAuthStore((s) => s.setUser)
   const [form, setForm] = useState({ name: user?.name ?? '', mainCharacter: user?.mainCharacter ?? '' })
   const [saving, setSaving] = useState(false)
   const [formMessage, setFormMessage] = useState<string | null>(null)

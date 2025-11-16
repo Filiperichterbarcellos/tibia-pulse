@@ -3,7 +3,8 @@ import { useAuthStore } from '@/features/auth/useAuthStore'
 
 export default function ProtectedRoute() {
   const location = useLocation()
-  const { token, status } = useAuthStore((s) => ({ token: s.token, status: s.status }))
+  const token = useAuthStore((s) => s.token)
+  const status = useAuthStore((s) => s.status)
 
   if (!token) {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
