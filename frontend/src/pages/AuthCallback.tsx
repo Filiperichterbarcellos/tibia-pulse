@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchSession } from '@/features/auth/api'
 import { useAuthStore } from '@/features/auth/useAuthStore'
@@ -11,6 +11,7 @@ export default function AuthCallback() {
   const logout = useAuthStore((s) => s.logout)
   const [status, setStatus] = useState<'loading' | 'error'>('loading')
   const [message, setMessage] = useState('Finalizando login…')
+  const processedTokenRef = useRef<string | null>(null)
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -18,8 +19,14 @@ export default function AuthCallback() {
     if (!token) {
       setStatus('error')
       setMessage('Token não recebido. Tente entrar novamente.')
+      processedTokenRef.current = null
       return
     }
+
+    if (processedTokenRef.current === token) {
+      return
+    }
+    processedTokenRef.current = token
 
     async function finalize() {
       try {
@@ -30,6 +37,7 @@ export default function AuthCallback() {
         navigate('/account', { replace: true })
       } catch (err: any) {
         console.error('[auth] callback failed', err)
+        processedTokenRef.current = null
         logout()
         setStatus('error')
         setMessage(err?.response?.data?.error ?? 'Não foi possível validar sua sessão.')
