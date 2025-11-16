@@ -537,17 +537,19 @@
 .retro-logo {
   display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
-  font-weight: 700;
-  font-size: 1rem;
-  letter-spacing: 0.1em;
+  gap: 0.3rem;
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #4338ca;
+  font-weight: 800;
 }
 
-.retro-logo img {
-  width: 28px;
-  height: 28px;
+.retro-logo__accent {
+  color: #7c3aed;
+}
+
+.retro-logo__main {
+  color: #1e1b4b;
 }
 
 .retro-nav {

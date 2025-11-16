@@ -1,7 +1,6 @@
 import clsx from 'clsx'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/features/auth/useAuthStore'
-import logo from '@/assets/fansite-logo.png'
 
 const NAV_LINKS = [
   { to: '/characters', label: 'Buscar personagem' },
@@ -19,9 +18,9 @@ export default function Header() {
   return (
     <header className="retro-header">
       <div className="retro-header__inner">
-        <Link to="/" className="retro-logo">
-          <img src={logo} alt="Tibia Pulse" />
-          <span>Tibia Pulse</span>
+        <Link to="/" className="retro-logo" aria-label="Tibia Pulse home">
+          <span className="retro-logo__accent">Tibia</span>
+          <span className="retro-logo__main">Pulse</span>
         </Link>
 
         <nav className="retro-nav">
