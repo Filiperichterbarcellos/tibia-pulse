@@ -39,4 +39,6 @@ async function ensureFavoriteSnapshotColumn() {
   }
 }
 
-void ensureFavoriteSnapshotColumn()
+if (process.env.NODE_ENV !== 'test') {
+  void ensureFavoriteSnapshotColumn()
+}
