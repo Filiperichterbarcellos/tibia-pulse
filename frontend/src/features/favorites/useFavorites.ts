@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthStore } from '@/features/auth/useAuthStore'
 import {
   createFavorite,
@@ -26,16 +26,23 @@ export function useFavorites<TSnapshot = any>(type: Favorite['type']): UseFavori
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [updatingKey, setUpdatingKey] = useState<string | null>(null)
+  const favoriteMapRef = useRef<Map<string, FavoriteRecord<TSnapshot>>>(new Map())
 
   const fetchFavorites = useCallback(async () => {
     if (!token) return
     setLoading(true)
     try {
       const { favorites: payload } = await listFavorites(type)
-      setFavorites(payload as Array<FavoriteRecord<TSnapshot>>)
+      const normalized = payload as Array<FavoriteRecord<TSnapshot>>
+      setFavorites(normalized)
+      favoriteMapRef.current = new Map(normalized.map((fav) => [fav.key, fav]))
       setError(null)
     } catch (err: any) {
-      const message = err?.response?.data?.error ?? 'Não foi possível carregar favoritos.'
+      const rawMessage = err?.response?.data?.error
+      const message =
+        rawMessage && rawMessage !== 'internal error'
+          ? rawMessage
+          : 'Não foi possível carregar seus favoritos agora.'
       setError(message)
     } finally {
       setLoading(false)
@@ -53,6 +60,10 @@ export function useFavorites<TSnapshot = any>(type: Favorite['type']): UseFavori
   }, [token, fetchFavorites])
 
   const favoriteMap = useMemo(() => new Map(favorites.map((fav) => [fav.key, fav])), [favorites])
+
+  useEffect(() => {
+    favoriteMapRef.current = favoriteMap
+  }, [favoriteMap])
 
   const addFavorite = useCallback(
     async (payload: { key: string; notes?: string; snapshot?: TSnapshot }) => {
@@ -72,6 +83,15 @@ export function useFavorites<TSnapshot = any>(type: Favorite['type']): UseFavori
         setError(null)
         return favorite as FavoriteRecord<TSnapshot>
       } catch (err: any) {
+        if (err?.response?.status === 409) {
+          setError(null)
+          await fetchFavorites().catch(() => {})
+          const existing = favoriteMapRef.current.get(payload.key)
+          if (existing) {
+            return existing
+          }
+          throw err
+        }
         const message = err?.response?.data?.error ?? 'Não foi possível salvar o favorito.'
         setError(message)
         throw err
@@ -79,7 +99,7 @@ export function useFavorites<TSnapshot = any>(type: Favorite['type']): UseFavori
         setUpdatingKey(null)
       }
     },
-    [token, type],
+    [token, type, fetchFavorites],
   )
 
   const removeFavorite = useCallback(

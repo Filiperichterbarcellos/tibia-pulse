@@ -132,7 +132,7 @@ export default function Account() {
   )
 
   return (
-    <div className="retro-layout space-y-6">
+    <div className="retro-layout space-y-6 text-[#1b1f3b]">
       <section className="retro-hero">
         <div>
           <p className="retro-badge">Área do usuário</p>
@@ -274,10 +274,10 @@ function FormAlert({
 }) {
   const styles =
     tone === 'error'
-      ? 'bg-red-500/10 text-red-100 border border-red-500/30'
-      : 'bg-emerald-500/10 text-emerald-100 border border-emerald-500/40'
+      ? 'bg-red-100 text-red-900 border border-red-300'
+      : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
   return (
-    <div className={`rounded-xl px-3 py-2 text-sm ${styles}`}>
+    <div className={`rounded-xl px-3 py-2 text-sm font-medium ${styles}`}>
       {children}
     </div>
   )

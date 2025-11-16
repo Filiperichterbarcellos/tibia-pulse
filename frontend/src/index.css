@@ -23,6 +23,7 @@
   border: 1px solid var(--retro-border);
   background: #fff;
   box-shadow: 0 15px 40px rgba(88, 91, 158, 0.15);
+  color: var(--retro-text);
 }
 
 .retro-hero h1 {
@@ -86,6 +87,7 @@
   background: var(--retro-panel);
   padding: 1.5rem;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.05);
+  color: var(--retro-text);
 }
 
 .retro-input {
